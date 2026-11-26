@@ -230,11 +230,14 @@ Requires Docker (melange runs privileged in a container), bash, jq, curl,
 gpgv and the AWS CLI. Build one architecture into the local daemon and smoke-test it:
 
 ```sh
-SIGNING_KEY=path/to/test.rsa WORK=$PWD/.work scripts/build-packages.sh aarch64 pnpm
-LOCAL=1 ARCH_ONLY=aarch64 APK_REPO_OVERRIDE=$PWD/.work/packages scripts/build-images.sh bun
+docker run --rm -v "$PWD/.work:/w" -w /w cgr.dev/chainguard/melange keygen forklaunch-melange.rsa  # a test key
+export SIGNING_KEY=$PWD/.work/forklaunch-melange.rsa APK_KEY_PATH=$PWD/.work/forklaunch-melange.rsa.pub
+LOCAL_INDEX=1 scripts/build-packages.sh aarch64 pnpm codex nodejs-24   # Node takes about an hour on 12 cores
+LOCAL=1 ARCH_ONLY=aarch64 APK_REPO_OVERRIDE=$PWD/.work/packages scripts/build-images.sh node
 scripts/smoke.sh aarch64
 ```
 
-Local builds use a key you generate (`melange keygen`); the published
-repository's key never leaves Secrets Manager. With `APK_REPO_OVERRIDE`, also
-set `APK_KEY_PATH` to your test key's `.pub`.
+The test key must be named `forklaunch-melange.rsa`, because the index
+signature carries the key's file name. The published repository's key never
+leaves Secrets Manager. Local builds write lock files under `images/*/locks`;
+do not commit those.

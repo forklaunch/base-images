@@ -118,7 +118,8 @@ test_toolchain() { # ref
     export PLAYWRIGHT_BROWSERS_PATH=/tmp/pw
     npx --yes playwright-core@'"${PLAYWRIGHT_VERSION:-1.65.0}"' install --only-shell chromium >/tmp/pw.log 2>&1 || { tail -20 /tmp/pw.log >&2; exit 1; }
     shell="$(find /tmp/pw -type f -name chrome-headless-shell | head -1)"
-    missing="$(ldd "$shell" | grep "not found" || true)"
+    ld="$(ls /lib/ld-linux-*.so.* | head -1)"   # Wolfi ships no ldd; the loader lists instead
+    missing="$("$ld" --list "$shell" | grep "not found" || true)"
     [ -z "$missing" ] || { echo "$missing" >&2; exit 1; }
     "$shell" --headless --no-sandbox --disable-gpu --dump-dom "data:text/html,<p>ok</p>" 2>/dev/null | grep -q "<p>ok</p>" && echo ok')"
 }

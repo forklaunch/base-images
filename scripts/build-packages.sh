@@ -9,6 +9,8 @@
 #   package       nodejs-24, nodejs-26, pnpm, codex, bun (default: all of them)
 #   SIGNING_KEY   path to the melange private key (required)
 #   FORCE=1       rebuild even if the package is already published
+#   LOCAL_INDEX=1 also write a signed APKINDEX of everything in $WORK/packages/<arch>
+#                 (for local apko builds with APK_REPO_OVERRIDE)
 # Built files are listed in $WORK/packages/<arch>/built.txt.
 set -euo pipefail
 . "$(dirname "$0")/lib.sh"
@@ -82,3 +84,7 @@ done
 touch "$out/$arch/built.txt"
 for f in "${built[@]+"${built[@]}"}"; do echo "$f" >> "$out/$arch/built.txt"; done
 log "$arch: built ${built[*]+"${built[*]}"}"
+if [ "${LOCAL_INDEX:-0}" = 1 ]; then
+  (cd "$WORK" && TOOL_PRIVILEGED=1 tool "$MELANGE_IMAGE" index --arch "$arch" \
+     --signing-key "$key_dir/${APK_KEY_NAME%.pub}" --output "$out/$arch/APKINDEX.tar.gz" "$out/$arch"/*.apk)
+fi
