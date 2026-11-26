@@ -190,8 +190,11 @@ until it passes again.
 
 AWS access is GitHub OIDC only: the workflow assumes
 `arn:aws:iam::038774803424:role/forklaunch-base-images-ci`, whose trust policy
-accepts only `repo:forklaunch/base-images:ref:refs/heads/main` (scheduled runs
-and dispatches from `main`). Its policy reaches the four public repositories,
+accepts only tokens for `main` of this repository (scheduled runs and
+dispatches from `main`; pull requests and other branches get a different
+subject). The repository uses GitHub's immutable subject claims, so the subject
+it matches is `repo:forklaunch@169505310/base-images@1473769631:ref:refs/heads/main`,
+the ID-qualified form of `repo:forklaunch/base-images:ref:refs/heads/main`. Its policy reaches the four public repositories,
 the staging repositories, the apk bucket's `os/` prefix and the signing key
 secret, and nothing else. See [`infra/`](infra/) for the policies and the
 idempotent `bootstrap.sh` that created everything.

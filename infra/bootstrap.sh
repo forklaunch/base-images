@@ -20,7 +20,7 @@ set -a; . "$root/config.env"; set +a
 key_file="${1:-}"
 
 render() { sed -e "s/@@ACCOUNT@@/$AWS_ACCOUNT_ID/g" -e "s/@@REGION@@/$AWS_REGION/g" \
-  -e "s/@@BUCKET@@/$APK_BUCKET/g" -e "s#@@APK_REPO_PATH@@#$APK_REPO_PATH#g" "$1"; }
+  -e "s/@@BUCKET@@/$APK_BUCKET/g" -e "s#@@APK_REPO_PATH@@#$APK_REPO_PATH#g" -e "s#@@SUB_PREFIX@@#$GITHUB_OIDC_SUB_PREFIX#g" "$1"; }
 
 oidc_arn="arn:aws:iam::${AWS_ACCOUNT_ID}:oidc-provider/token.actions.githubusercontent.com"
 if ! aws iam get-open-id-connect-provider --open-id-connect-provider-arn "$oidc_arn" >/dev/null 2>&1; then
