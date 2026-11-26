@@ -42,12 +42,12 @@ for name in "${targets[@]}"; do
       m="${name#nodejs-}"; v="NODE_${m}_VERSION"; s="NODE_${m}_SHA256"; e="NODE_${m}_EPOCH"
       version="${!v}"; epoch="${!e}"; template=nodejs.yaml.in
       vars=("NODE_MAJOR=$m" "NODE_VERSION=$version" "NODE_SHA256=${!s}" "NODE_EPOCH=$epoch") ;;
-    *) die "unknown package $name" ;;
     pnpm) version="$PNPM_VERSION"; epoch="$PNPM_EPOCH"; template=pnpm.yaml.in; vars=("$ROOT/pins/packages.env") ;;
     codex) version="$CODEX_VERSION"; epoch="$CODEX_EPOCH"; template=codex.yaml.in; vars=("$ROOT/pins/packages.env") ;;
     bun)
       [ "$BUN_SOURCE" = forklaunch ] || { log "bun comes from Wolfi (BUN_SOURCE=wolfi); skipping"; continue; }
       version="$BUN_VERSION"; epoch="$BUN_EPOCH"; template=bun.yaml.in; vars=("$ROOT/pins/packages.env") ;;
+    *) die "unknown package $name" ;;
   esac
   file="$name-$version-r$epoch.apk"
   if [ "${FORCE:-0}" != 1 ] && published "$file"; then

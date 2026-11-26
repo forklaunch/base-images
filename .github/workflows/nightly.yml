@@ -131,7 +131,10 @@ jobs:
           retention-days: 7
 
   apk-index:
-    needs: packages
+    # Publish whatever built, even if another package failed: each package is
+    # complete on its own, and a published Node build is not compiled again.
+    needs: [pins, packages]
+    if: ${{ always() && needs.pins.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -170,7 +173,8 @@ jobs:
           done
 
   images:
-    needs: apk-index
+    needs: [packages, apk-index]
+    if: ${{ always() && needs.packages.result == 'success' && needs.apk-index.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
