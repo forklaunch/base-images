@@ -1,0 +1,4 @@
+.work/
+*.rsa
+!keys/*.rsa.pub
+melange-cache/

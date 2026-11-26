@@ -1,0 +1,50 @@
+# node:<major> runtime. Node is our own build (nodejs-<major>@forklaunch).
+contents:
+  repositories:
+    - @@WOLFI_REPO_URL@@
+    - "@forklaunch @@APK_REPO_URL@@"
+  keyring:
+    - @@WOLFI_KEY@@
+    - @@APK_KEY@@
+  packages:
+    - wolfi-base
+    - ca-certificates-bundle
+    - curl
+    - nodejs-@@NODE_MAJOR@@@forklaunch
+    - nodejs-@@NODE_MAJOR@@-oci-entrypoint@forklaunch
+
+accounts:
+  groups:
+    - groupname: node
+      gid: 1000
+  users:
+    - username: node
+      uid: 1000
+      gid: 1000
+      homedir: /home/node
+      shell: /bin/sh
+  run-as: node
+
+paths:
+  - path: /home/node
+    type: directory
+    uid: 1000
+    gid: 1000
+    permissions: 0o755
+
+environment:
+  NODE_VERSION: "@@NODE_VERSION@@"
+  PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+entrypoint:
+  command: /usr/local/bin/docker-entrypoint.sh
+cmd: node
+
+annotations:
+  org.opencontainers.image.source: https://github.com/forklaunch/base-images
+  org.opencontainers.image.vendor: ForkLaunch
+  org.opencontainers.image.title: "node @@NODE_VERSION@@"
+  org.opencontainers.image.version: "@@NODE_VERSION@@"
+  org.opencontainers.image.revision: "@@GIT_SHA@@"
+
+archs: [x86_64, aarch64]

@@ -1,0 +1,11 @@
+# Wolfi package pins for the bun image (name=version-rN).
+# scripts/refresh-pins.sh moves each to the newest build on both architectures.
+# Packages built here (@forklaunch) are pinned in pins/packages.env instead.
+wolfi-base=1-r8
+bun=1.4.5-r0
+libstdc++=16.2.0-r5
+ca-certificates-bundle=20261020-r1
+curl=8.23.0-r4
+git=2.56.1-r2
+python-3.13=3.13.18_git20261122-r0
+build-base=1-r11

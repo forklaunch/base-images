@@ -1,0 +1,11 @@
+{
+  "Rules": [
+    {
+      "ID": "expire-replaced-indexes",
+      "Status": "Enabled",
+      "Filter": { "Prefix": "" },
+      "NoncurrentVersionExpiration": { "NoncurrentDays": 30 },
+      "AbortIncompleteMultipartUpload": { "DaysAfterInitiation": 3 }
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+# pnpm from the npm registry tarball, checked against the registry's sha512
+# integrity value (pins/packages.env). Pure JavaScript; needs a nodejs-* package
+# at run time, which every image that installs this also installs.
+package:
+  name: pnpm
+  version: "@@PNPM_VERSION@@"
+  epoch: @@PNPM_EPOCH@@
+  description: "Fast, disk space efficient package manager (npm registry release)"
+  copyright:
+    - license: MIT
+  options:
+    no-depends: true
+
+environment:
+  contents:
+    packages:
+      - busybox
+
+pipeline:
+  - uses: fetch
+    with:
+      uri: https://registry.npmjs.org/pnpm/-/pnpm-${{package.version}}.tgz
+      expected-sha512: @@PNPM_SHA512@@
+      strip-components: 1
+  - runs: |
+      dest="${{targets.destdir}}/usr/lib/node_modules/pnpm"
+      mkdir -p "$dest" "${{targets.destdir}}/usr/bin"
+      cp -a package.json LICENSE bin dist "$dest"/
+      [ -d artifacts ] && cp -a artifacts "$dest"/ || true
+      for b in pnpm pn; do ln -s ../lib/node_modules/pnpm/bin/pnpm.mjs "${{targets.destdir}}/usr/bin/$b"; done
+      for b in pnpx pnx; do ln -s ../lib/node_modules/pnpm/bin/pnpx.mjs "${{targets.destdir}}/usr/bin/$b"; done

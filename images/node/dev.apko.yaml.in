@@ -1,0 +1,62 @@
+# node:<major>-dev, for build stages: npm (and corepack on 24, which upstream
+# still bundles), pnpm, Node headers, python3, make, gcc/g++, git.
+# Runs as root so build steps can install things; the node user exists.
+contents:
+  repositories:
+    - @@WOLFI_REPO_URL@@
+    - "@forklaunch @@APK_REPO_URL@@"
+  keyring:
+    - @@WOLFI_KEY@@
+    - @@APK_KEY@@
+  packages:
+    - wolfi-base
+    - ca-certificates-bundle
+    - curl
+    - nodejs-@@NODE_MAJOR@@@forklaunch
+    - nodejs-@@NODE_MAJOR@@-npm@forklaunch
+    - nodejs-@@NODE_MAJOR@@-dev@forklaunch
+    - nodejs-@@NODE_MAJOR@@-oci-entrypoint@forklaunch
+    - pnpm@forklaunch
+    - python-3.13
+    - build-base
+    - git
+
+accounts:
+  groups:
+    - groupname: node
+      gid: 1000
+  users:
+    - username: node
+      uid: 1000
+      gid: 1000
+      homedir: /home/node
+      shell: /bin/sh
+  run-as: root
+
+paths:
+  - path: /home/node
+    type: directory
+    uid: 1000
+    gid: 1000
+    permissions: 0o755
+
+environment:
+  NODE_VERSION: "@@NODE_VERSION@@"
+  PNPM_VERSION: "@@PNPM_VERSION@@"
+  # node-gyp (through npm or pnpm) builds addons against the installed headers
+  # instead of downloading them.
+  npm_config_nodedir: /usr
+  PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+entrypoint:
+  command: /usr/local/bin/docker-entrypoint.sh
+cmd: node
+
+annotations:
+  org.opencontainers.image.source: https://github.com/forklaunch/base-images
+  org.opencontainers.image.vendor: ForkLaunch
+  org.opencontainers.image.title: "node @@NODE_VERSION@@ dev"
+  org.opencontainers.image.version: "@@NODE_VERSION@@"
+  org.opencontainers.image.revision: "@@GIT_SHA@@"
+
+archs: [x86_64, aarch64]

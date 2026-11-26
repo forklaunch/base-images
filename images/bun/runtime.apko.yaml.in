@@ -1,0 +1,51 @@
+# bun:1 runtime. Bun comes from Wolfi, or from our own build
+# (bun@forklaunch) when pins/packages.env sets BUN_SOURCE=forklaunch.
+contents:
+  repositories:
+    - @@WOLFI_REPO_URL@@
+    - "@forklaunch @@APK_REPO_URL@@"
+  keyring:
+    - @@WOLFI_KEY@@
+    - @@APK_KEY@@
+  packages:
+    - wolfi-base
+    - @@BUN_PACKAGE@@
+    - libstdc++
+    - ca-certificates-bundle
+    - curl
+
+accounts:
+  groups:
+    - groupname: bun
+      gid: 1000
+  users:
+    - username: bun
+      uid: 1000
+      gid: 1000
+      homedir: /home/bun
+      shell: /bin/sh
+  run-as: bun
+
+paths:
+  - path: /home/bun
+    type: directory
+    uid: 1000
+    gid: 1000
+    permissions: 0o755
+
+environment:
+  BUN_VERSION: "@@BUN_VERSION@@"
+  BUN_RUNTIME_TRANSPILER_CACHE_PATH: "0"
+  PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+entrypoint:
+  command: /usr/bin/bun
+
+annotations:
+  org.opencontainers.image.source: https://github.com/forklaunch/base-images
+  org.opencontainers.image.vendor: ForkLaunch
+  org.opencontainers.image.title: "bun @@BUN_VERSION@@"
+  org.opencontainers.image.version: "@@BUN_VERSION@@"
+  org.opencontainers.image.revision: "@@GIT_SHA@@"
+
+archs: [x86_64, aarch64]

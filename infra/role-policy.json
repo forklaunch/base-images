@@ -1,0 +1,81 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "EcrLogin",
+      "Effect": "Allow",
+      "Action": ["ecr:GetAuthorizationToken", "ecr-public:GetAuthorizationToken"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "EcrPublicLoginToken",
+      "Effect": "Allow",
+      "Action": "sts:GetServiceBearerToken",
+      "Resource": "*",
+      "Condition": { "StringEquals": { "sts:AWSServiceName": "ecr-public.amazonaws.com" } }
+    },
+    {
+      "Sid": "StagingRepos",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:BatchGetImage",
+        "ecr:CompleteLayerUpload",
+        "ecr:DescribeImageScanFindings",
+        "ecr:DescribeImages",
+        "ecr:DescribeRepositories",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:InitiateLayerUpload",
+        "ecr:ListImages",
+        "ecr:PutImage",
+        "ecr:StartImageScan",
+        "ecr:UploadLayerPart"
+      ],
+      "Resource": "arn:aws:ecr:@@REGION@@:@@ACCOUNT@@:repository/base-images-staging/*"
+    },
+    {
+      "Sid": "PublicRepos",
+      "Effect": "Allow",
+      "Action": [
+        "ecr-public:BatchCheckLayerAvailability",
+        "ecr-public:CompleteLayerUpload",
+        "ecr-public:DescribeImageTags",
+        "ecr-public:DescribeImages",
+        "ecr-public:DescribeRepositories",
+        "ecr-public:InitiateLayerUpload",
+        "ecr-public:PutImage",
+        "ecr-public:UploadLayerPart"
+      ],
+      "Resource": [
+        "arn:aws:ecr-public::@@ACCOUNT@@:repository/node",
+        "arn:aws:ecr-public::@@ACCOUNT@@:repository/bun",
+        "arn:aws:ecr-public::@@ACCOUNT@@:repository/rust",
+        "arn:aws:ecr-public::@@ACCOUNT@@:repository/platform-toolchain"
+      ]
+    },
+    {
+      "Sid": "PublicRegistryLookup",
+      "Effect": "Allow",
+      "Action": "ecr-public:DescribeRegistries",
+      "Resource": "*"
+    },
+    {
+      "Sid": "ApkBucketList",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::@@BUCKET@@"
+    },
+    {
+      "Sid": "ApkBucketObjects",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject"],
+      "Resource": "arn:aws:s3:::@@BUCKET@@/@@APK_REPO_PATH@@/*"
+    },
+    {
+      "Sid": "SigningKey",
+      "Effect": "Allow",
+      "Action": "secretsmanager:GetSecretValue",
+      "Resource": "arn:aws:secretsmanager:@@REGION@@:@@ACCOUNT@@:secret:base-images/melange-signing-key-*"
+    }
+  ]
+}

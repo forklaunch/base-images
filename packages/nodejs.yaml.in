@@ -1,0 +1,121 @@
+# Node.js @@NODE_MAJOR@@, compiled from the nodejs.org source release.
+#
+# Rendered per major by scripts/build-packages.sh from pins/packages.env.
+# The tarball's sha256 is pinned from SHASUMS256.txt, and the build script
+# checks that file's signature against keys/nodejs-release-keys.kbx before
+# melange runs. The package keeps upstream's name scheme and version
+# (nodejs-<major>, <x.y.z>) so scanners compare it against the right advisory
+# data; -rN is this repository's own build number.
+#
+# Built the way nodejs.org builds its release binaries: bundled OpenSSL, ICU,
+# libuv, zlib and the other third-party code, so behaviour matches the official
+# image. Flags and layout borrow from wolfi-dev/os nodejs-26.yaml (Apache-2.0).
+package:
+  name: nodejs-@@NODE_MAJOR@@
+  version: "@@NODE_VERSION@@"
+  epoch: @@NODE_EPOCH@@
+  description: "JavaScript runtime built on V8 (nodejs.org source release, built by ForkLaunch)"
+  copyright:
+    - license: MIT
+  dependencies:
+    provides:
+      - nodejs=${{package.full-version}}
+  resources:
+    cpu: 4
+    memory: 16Gi
+
+vars:
+  # docker-entrypoint.sh from nodejs/docker-node, as wolfi-dev/os pins it.
+  docker-entrypoint-commit: 31a343bbe3f1
+  docker-entrypoint-hash: a15ac9589c04baf9da95b08e0e79b5cf1d75ab8dc64e06a5e68e4ceb0ad7c8ea
+
+environment:
+  contents:
+    packages:
+      - build-base
+      - busybox
+      - ca-certificates-bundle
+      - gcc-14-default
+      - linux-headers
+      - python-3.13-base
+      - samurai
+      - wolfi-base
+  environment:
+    # Wolfi's default hardening flags include -fno-delete-null-pointer-checks,
+    # which V8 does not build with (wolfi-dev/os#34075).
+    CXXFLAGS: -fdelete-null-pointer-checks
+
+pipeline:
+  - uses: fetch
+    with:
+      uri: https://nodejs.org/dist/v${{package.version}}/node-v${{package.version}}.tar.xz
+      expected-sha256: @@NODE_SHA256@@
+
+  - name: Configure and build
+    runs: |
+      flags="-D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64"
+      export CFLAGS="${CFLAGS/-Os/-O2} $flags"
+      export CXXFLAGS="${CXXFLAGS/-Os/-O2} $flags"
+      export CPPFLAGS="${CPPFLAGS/-Os/-O2} $flags"
+      python3.13 configure.py --prefix=/usr --ninja
+      make BUILDTYPE=Release -j"$(nproc)"
+
+  - runs: |
+      make DESTDIR="${{targets.destdir}}" install
+      rm -rf "${{targets.destdir}}"/usr/share/doc "${{targets.destdir}}"/usr/share/man \
+        "${{targets.destdir}}"/usr/share/systemtap
+
+  - uses: strip
+
+subpackages:
+  # npm, npx and (Node 24 only; upstream dropped it in 25) corepack, as bundled
+  # in the release. Installed only in -dev images.
+  - name: ${{package.name}}-npm
+    description: npm, npx and corepack as bundled with Node.js ${{package.version}}
+    dependencies:
+      runtime:
+        - ${{package.name}}=${{package.full-version}}
+    pipeline:
+      - runs: |
+          mkdir -p "${{targets.subpkgdir}}"/usr/lib/node_modules "${{targets.subpkgdir}}"/usr/bin
+          for tool in npm corepack; do
+            if [ -d "${{targets.destdir}}/usr/lib/node_modules/$tool" ]; then
+              mv "${{targets.destdir}}/usr/lib/node_modules/$tool" "${{targets.subpkgdir}}/usr/lib/node_modules/"
+            fi
+          done
+          for bin in npm npx corepack; do
+            if [ -e "${{targets.destdir}}/usr/bin/$bin" ] || [ -L "${{targets.destdir}}/usr/bin/$bin" ]; then
+              mv "${{targets.destdir}}/usr/bin/$bin" "${{targets.subpkgdir}}/usr/bin/"
+            fi
+          done
+          rmdir "${{targets.destdir}}"/usr/lib/node_modules 2>/dev/null || true
+
+  # C/C++ headers for native addons (node-gyp finds them through --nodedir=/usr).
+  - name: ${{package.name}}-dev
+    description: Node.js ${{package.version}} headers for native addons
+    dependencies:
+      runtime:
+        - ${{package.name}}=${{package.full-version}}
+    pipeline:
+      - runs: |
+          mkdir -p "${{targets.subpkgdir}}"/usr
+          mv "${{targets.destdir}}"/usr/include "${{targets.subpkgdir}}"/usr/
+
+  # The official image's entrypoint: `docker run <image> app.js` runs node app.js.
+  - name: ${{package.name}}-oci-entrypoint
+    description: docker-entrypoint.sh from nodejs/docker-node
+    pipeline:
+      - uses: fetch
+        with:
+          uri: https://raw.githubusercontent.com/nodejs/docker-node/${{vars.docker-entrypoint-commit}}/docker-entrypoint.sh
+          expected-sha256: ${{vars.docker-entrypoint-hash}}
+          extract: false
+      - runs: |
+          install -Dm755 docker-entrypoint.sh "${{targets.subpkgdir}}"/usr/local/bin/docker-entrypoint.sh
+
+test:
+  pipeline:
+    - runs: |
+        node --version | grep -Fx "v${{package.version}}"
+        node -e 'console.log(new Intl.NumberFormat("de-DE").format(1234.56))' | grep -F '1.234,56'
+        node -e 'require("node:crypto").createHash("sha256").update("x").digest("hex")'

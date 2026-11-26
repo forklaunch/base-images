@@ -1,0 +1,34 @@
+# Fallback only: used when Wolfi has not packaged the newest Bun release yet
+# (BUN_SOURCE=forklaunch in pins/packages.env). Repackages the official
+# release build; the zip's sha256 comes from the release's SHASUMS256.txt and
+# must match the digest GitHub records for the asset (scripts/refresh-pins.sh).
+package:
+  name: bun
+  version: "@@BUN_VERSION@@"
+  epoch: @@BUN_EPOCH@@
+  description: "Bun JavaScript runtime (official release build, repackaged)"
+  copyright:
+    - license: MIT
+
+environment:
+  contents:
+    packages:
+      - busybox
+
+pipeline:
+  - if: ${{build.arch}} == 'x86_64'
+    uses: fetch
+    with:
+      uri: https://github.com/oven-sh/bun/releases/download/bun-v${{package.version}}/bun-linux-x64.zip
+      expected-sha256: @@BUN_SHA256_X86_64@@
+      extract: false
+  - if: ${{build.arch}} == 'aarch64'
+    uses: fetch
+    with:
+      uri: https://github.com/oven-sh/bun/releases/download/bun-v${{package.version}}/bun-linux-aarch64.zip
+      expected-sha256: @@BUN_SHA256_AARCH64@@
+      extract: false
+  - runs: |
+      unzip -o bun-linux-*.zip
+      install -Dm755 bun-linux-*/bun "${{targets.destdir}}/usr/bin/bun"
+      ln -s bun "${{targets.destdir}}/usr/bin/bunx"

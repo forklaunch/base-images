@@ -1,0 +1,416 @@
+name: nightly
+
+# Refresh pins -> build packages (melange) -> build images (apko) -> push to
+# private staging ECR -> ECR scan gate + Grype -> smoke tests on both
+# architectures -> publish passing images to public ECR -> commit pins.
+# A held-back image opens (or refreshes) a GitHub issue with the findings.
+
+on:
+  schedule:
+    - cron: "23 8 * * *" # 08:23 UTC daily
+  workflow_dispatch:
+    inputs:
+      refresh:
+        description: Refresh pins to the newest upstream before building
+        type: boolean
+        default: true
+      force_packages:
+        description: Rebuild our melange packages even if already published
+        type: boolean
+        default: false
+      grype_gate:
+        description: "Grype enforcement: report (shown only), fixable, all"
+        type: choice
+        options: [report, fixable, all]
+        default: report
+      publish:
+        description: Publish passing images to public ECR
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+  CI_ROLE_ARN: arn:aws:iam::038774803424:role/forklaunch-base-images-ci
+
+jobs:
+  pins:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      packages: ${{ steps.plan.outputs.packages }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Refresh pins
+        if: github.event_name == 'schedule' || inputs.refresh
+        env:
+          WORK: ${{ runner.temp }}/work
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/refresh-pins.sh
+      - name: Changelog
+        env:
+          WORK: ${{ runner.temp }}/work
+        run: |
+          mkdir -p "$WORK"; touch "$WORK/pins-changes.md"
+          cp "$WORK/pins-changes.md" pins/CHANGES.md
+          { echo "### Pin changes"; if [ -s pins/CHANGES.md ]; then cat pins/CHANGES.md; else echo "none"; fi; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Plan package builds
+        id: plan
+        run: |
+          . pins/packages.env
+          pkgs="$(for m in $NODE_MAJORS; do printf '"nodejs-%s",' "$m"; done)\"misc\""
+          echo "packages=[$pkgs]" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pins
+          path: pins/
+          retention-days: 30
+
+  packages:
+    needs: pins
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJSON(needs.pins.outputs.packages) }}
+        arch: [x86_64, aarch64]
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 340
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: pins
+          path: pins/
+      - uses: aws-actions/configure-aws-credentials@45666896f5d8e0f10ae255413f3a4cdd03bdc8f5 # v6.3.1
+        with:
+          role-to-assume: ${{ env.CI_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-duration-seconds: 21600
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL || true
+          df -h /
+      - name: Fetch signing key
+        run: |
+          umask 077
+          aws secretsmanager get-secret-value --secret-id base-images/melange-signing-key \
+            --query SecretString --output text > "$RUNNER_TEMP/melange.rsa"
+      - name: Build
+        env:
+          WORK: ${{ runner.temp }}/work
+          SIGNING_KEY: ${{ runner.temp }}/melange.rsa
+          FORCE: ${{ inputs.force_packages && '1' || '0' }}
+        run: |
+          if [ "${{ matrix.package }}" = misc ]; then set -- pnpm codex bun; else set -- "${{ matrix.package }}"; fi
+          scripts/build-packages.sh "${{ matrix.arch }}" "$@"
+          mv "$WORK/packages/${{ matrix.arch }}/built.txt" "$WORK/packages/${{ matrix.arch }}/built-${{ matrix.package }}.txt"
+      - name: Remove signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/melange.rsa"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: apk-${{ matrix.arch }}-${{ matrix.package }}
+          path: |
+            ${{ runner.temp }}/work/packages/${{ matrix.arch }}/*.apk
+            ${{ runner.temp }}/work/packages/${{ matrix.arch }}/built-*.txt
+          if-no-files-found: ignore
+          retention-days: 7
+
+  apk-index:
+    needs: packages
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: pins
+          path: pins/
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: apk-*
+          path: ${{ runner.temp }}/apks
+      - uses: aws-actions/configure-aws-credentials@45666896f5d8e0f10ae255413f3a4cdd03bdc8f5 # v6.3.1
+        with:
+          role-to-assume: ${{ env.CI_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Publish packages and signed indexes
+        env:
+          WORK: ${{ runner.temp }}/work
+          SIGNING_KEY: ${{ runner.temp }}/melange.rsa
+        run: |
+          umask 077
+          aws secretsmanager get-secret-value --secret-id base-images/melange-signing-key \
+            --query SecretString --output text > "$SIGNING_KEY"
+          trap 'rm -f "$SIGNING_KEY"' EXIT
+          umask 022
+          for arch in x86_64 aarch64; do
+            mkdir -p "$WORK/packages/$arch"
+            for d in "$RUNNER_TEMP"/apks/apk-$arch-*; do
+              [ -d "$d" ] && cp "$d"/* "$WORK/packages/$arch/" 2>/dev/null || true
+            done
+            scripts/publish-packages.sh "$arch"
+          done
+
+  images:
+    needs: apk-index
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: pins
+          path: pins/
+      - uses: aws-actions/configure-aws-credentials@45666896f5d8e0f10ae255413f3a4cdd03bdc8f5 # v6.3.1
+        with:
+          role-to-assume: ${{ env.CI_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Log in to staging ECR
+        run: aws ecr get-login-password | docker login --username AWS --password-stdin "038774803424.dkr.ecr.${AWS_REGION}.amazonaws.com"
+      - name: Build and push candidates
+        env:
+          WORK: ${{ runner.temp }}/work
+          CANDIDATE_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: scripts/build-images.sh
+      - name: Collect
+        env:
+          WORK: ${{ runner.temp }}/work
+        run: |
+          mkdir -p out && cp "$WORK/candidates.tsv" out/ && cp -r "$WORK/sbom" out/sbom
+          for i in images/*/locks; do mkdir -p "out/locks/$(basename "$(dirname "$i")")"; cp "$i"/*.json "out/locks/$(basename "$(dirname "$i")")/"; done
+          { echo "### Candidates"; echo '```'; cat out/candidates.tsv; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: candidates
+          path: out/
+          retention-days: 30
+
+  gate:
+    needs: images
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: pins
+          path: pins/
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: candidates
+          path: ${{ runner.temp }}/work
+      - uses: aws-actions/configure-aws-credentials@45666896f5d8e0f10ae255413f3a4cdd03bdc8f5 # v6.3.1
+        with:
+          role-to-assume: ${{ env.CI_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Log in to staging ECR
+        run: aws ecr get-login-password | docker login --username AWS --password-stdin "038774803424.dkr.ecr.${AWS_REGION}.amazonaws.com"
+      - name: Scan gate
+        env:
+          WORK: ${{ runner.temp }}/work
+          GRYPE_GATE: ${{ inputs.grype_gate || 'report' }}
+        run: |
+          scripts/scan-gate.sh && echo "result=pass" > "$WORK/gate/result" || echo "result=fail" > "$WORK/gate/result"
+          cat "$WORK/gate/summary.md" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: gate
+          path: ${{ runner.temp }}/work/gate/
+          retention-days: 30
+
+  smoke:
+    needs: images
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: pins
+          path: pins/
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: candidates
+          path: ${{ runner.temp }}/work
+      - uses: aws-actions/configure-aws-credentials@45666896f5d8e0f10ae255413f3a4cdd03bdc8f5 # v6.3.1
+        with:
+          role-to-assume: ${{ env.CI_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Log in to staging ECR
+        run: aws ecr get-login-password | docker login --username AWS --password-stdin "038774803424.dkr.ecr.${AWS_REGION}.amazonaws.com"
+      - name: Smoke tests
+        env:
+          WORK: ${{ runner.temp }}/work
+        run: |
+          scripts/smoke.sh "${{ matrix.arch }}" || true
+          { echo "### Smoke tests (${{ matrix.arch }})"; echo '```'; cat "$WORK/smoke/${{ matrix.arch }}.tsv"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: smoke-${{ matrix.arch }}
+          path: ${{ runner.temp }}/work/smoke/
+          retention-days: 30
+
+  publish:
+    needs: [gate, smoke]
+    if: ${{ always() && needs.gate.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      published: ${{ steps.publish.outputs.published }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: pins
+          path: pins/
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: gate
+          path: ${{ runner.temp }}/results/gate
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: smoke-*
+          path: ${{ runner.temp }}/results
+      - name: Select images that passed the gate and both smoke tests
+        env:
+          WORK: ${{ runner.temp }}/work
+        run: |
+          mkdir -p "$WORK"
+          r="$RUNNER_TEMP/results"
+          cat "$r"/smoke-*/*.tsv > "$WORK/smoke.tsv" 2>/dev/null || : > "$WORK/smoke.tsv"
+          : > "$WORK/release.tsv"
+          while IFS=$'\t' read -r image variant ref; do
+            passes="$(awk -F'\t' -v i="$image" -v v="$variant" '$1==i && $2==v && $4=="pass"' "$WORK/smoke.tsv" | wc -l)"
+            if [ "$passes" -ge 2 ]; then printf '%s\t%s\t%s\n' "$image" "$variant" "$ref" >> "$WORK/release.tsv"
+            else echo "held back (smoke): $image:$variant"; fi
+          done < "$r/gate/passed.tsv"
+          { echo "### Releasing"; echo '```'; cat "$WORK/release.tsv"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: aws-actions/configure-aws-credentials@45666896f5d8e0f10ae255413f3a4cdd03bdc8f5 # v6.3.1
+        if: ${{ github.event_name == 'schedule' || inputs.publish }}
+        with:
+          role-to-assume: ${{ env.CI_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Publish
+        id: publish
+        if: ${{ github.event_name == 'schedule' || inputs.publish }}
+        env:
+          WORK: ${{ runner.temp }}/work
+        run: |
+          aws ecr get-login-password | docker login --username AWS --password-stdin "038774803424.dkr.ecr.${AWS_REGION}.amazonaws.com"
+          aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws
+          scripts/publish.sh "$WORK/release.tsv"
+          [ -s "$WORK/published.tsv" ] && echo "published=true" >> "$GITHUB_OUTPUT" || echo "published=false" >> "$GITHUB_OUTPUT"
+          { echo "### Published"; echo '```'; cat "$WORK/published.tsv"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ steps.publish.outcome == 'success' }}
+        with:
+          name: published
+          path: ${{ runner.temp }}/work/published.tsv
+          retention-days: 90
+
+  commit:
+    needs: publish
+    if: ${{ always() && needs.publish.outputs.published == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: pins
+          path: ${{ runner.temp }}/results/pins
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: candidates
+          path: ${{ runner.temp }}/results/candidates
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: published
+          path: ${{ runner.temp }}/results/published
+      - name: Commit pins of published images
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: scripts/commit-pins.sh "$RUNNER_TEMP/results"
+
+  report:
+    needs: [pins, packages, apk-index, images, gate, smoke, publish]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        continue-on-error: true
+        with:
+          name: gate
+          path: ${{ runner.temp }}/results/gate
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        continue-on-error: true
+        with:
+          pattern: smoke-*
+          path: ${{ runner.temp }}/results
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        continue-on-error: true
+        with:
+          name: candidates
+          path: ${{ runner.temp }}/results/candidates
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        continue-on-error: true
+        with:
+          name: published
+          path: ${{ runner.temp }}/results/published
+      - name: Open, refresh or close the gate issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          PUBLISH_DISABLED: ${{ (github.event_name != 'schedule' && !inputs.publish) && '1' || '0' }}
+          JOB_RESULTS: >-
+            pins=${{ needs.pins.result }} packages=${{ needs.packages.result }} apk-index=${{ needs.apk-index.result }}
+            images=${{ needs.images.result }} gate=${{ needs.gate.result }} smoke=${{ needs.smoke.result }}
+            publish=${{ needs.publish.result }}
+        run: scripts/report-issue.sh "$RUNNER_TEMP/results"

@@ -1,0 +1,97 @@
+# platform-toolchain: the tools the ForkLaunch platform worker image needs,
+# as a base its Dockerfile can start FROM. Mirrors the apt/curl installs in
+# forklaunch-platform src/modules/Dockerfile. Platform-specific pieces (nsjail,
+# buildkit, the ForkLaunch CLI, tsgo, Playwright's browser, the RDS CA bundle,
+# the platform's older Bun pin) stay in that Dockerfile.
+contents:
+  repositories:
+    - @@WOLFI_REPO_URL@@
+    - "@forklaunch @@APK_REPO_URL@@"
+  keyring:
+    - @@WOLFI_KEY@@
+    - @@APK_KEY@@
+  packages:
+    - wolfi-base
+    - bash
+    - coreutils
+    - ca-certificates-bundle
+    - curl
+    - git
+    - ripgrep
+    - unzip
+    - xz
+    # Node 26 (our build), npm, headers, pnpm
+    - nodejs-@@NODE_MAJOR@@@forklaunch
+    - nodejs-@@NODE_MAJOR@@-npm@forklaunch
+    - nodejs-@@NODE_MAJOR@@-dev@forklaunch
+    - pnpm@forklaunch
+    - @@BUN_PACKAGE@@
+    # Codex CLI (our package at the platform's pinned version)
+    - codex@forklaunch
+    # Docker CLI with buildx and compose plugins
+    - docker-cli
+    - docker-cli-buildx
+    - docker-compose
+    # Pulumi and its Node.js language host
+    - pulumi
+    - pulumi-language-nodejs
+    # AWS CLI v2
+    - aws-cli-2
+    # release-build network namespace (flbuild): NAT and metadata DROP rules
+    - iptables
+    - iproute2
+    # nsjail run-time libraries and the headers/compiler to build it
+    - libnl3
+    - libnl3-dev
+    - protobuf
+    - protobuf-dev
+    # Rust toolchain for customer Rust builds, plus rust-analyzer for the report card
+    - rust-@@RUST_MINOR@@
+    - rust-analyzer
+    - build-base
+    - pkgconf
+    - openssl-3.6-dev
+    - curl-dev
+    - cmake
+    - perl
+    # Shared libraries and fonts for Playwright's chrome-headless-shell
+    - ttf-dejavu
+    - fontconfig
+    - alsa-lib
+    - at-spi2-core
+    - dbus-libs
+    - mesa-gbm
+    - libdrm
+    - glib
+    - nss
+    - libx11
+    - libxcb
+    - libxcomposite
+    - libxdamage
+    - libxext
+    - libxfixes
+    - libxkbcommon
+    - libxrandr
+    - libudev
+    - expat
+
+accounts:
+  run-as: root
+
+environment:
+  NODE_VERSION: "@@NODE_VERSION@@"
+  PNPM_VERSION: "@@PNPM_VERSION@@"
+  BUN_VERSION: "@@BUN_VERSION@@"
+  RUST_VERSION: "@@RUST_VERSION@@"
+  npm_config_nodedir: /usr
+  PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+cmd: /bin/bash
+
+annotations:
+  org.opencontainers.image.source: https://github.com/forklaunch/base-images
+  org.opencontainers.image.vendor: ForkLaunch
+  org.opencontainers.image.title: "platform-toolchain"
+  org.opencontainers.image.revision: "@@GIT_SHA@@"
+
+archs: [x86_64, aarch64]
