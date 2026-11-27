@@ -30,7 +30,13 @@ while IFS=$'\t' read -r image variant ref; do
   # architectures and SBOM referrers); later ones just put the index under a tag.
   r=-r
   for t in $tags; do
-    oras cp $r "$ref" "$dst:$t" >&2
+    # ECR Public sometimes loses a chunked blob upload ("blob upload unknown").
+    # Upload one blob at a time and retry; a retry re-sends only what is missing.
+    n=0
+    until oras cp $r --concurrency 1 "$ref" "$dst:$t" >&2; do
+      n=$((n+1)); [ "$n" -lt 4 ] || die "$image:$variant: oras cp to $dst:$t failed $n times"
+      log "$image:$variant: oras cp to $dst:$t failed, retry $n in $((n*20))s"; sleep $((n*20))
+    done
     r=
   done
   # Check against the registry API, not public.ecr.aws, whose tag reads can be
