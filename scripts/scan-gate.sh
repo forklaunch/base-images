@@ -57,7 +57,7 @@ while IFS=$'\t' read -r image variant ref; do
     --query 'images[0].imageManifest' --output text)"
   candidate_ok=1
   while IFS=$'\t' read -r os_arch digest; do
-    arch="${os_arch#linux/}"
+    case "${os_arch#linux/}" in amd64) arch=x86_64;; arm64) arch=aarch64;; *) arch="${os_arch#linux/}";; esac
     status="$(wait_for_scan "$repo" "$digest")"
     total=-1; counts="{}"
     if [ "$status" = COMPLETE ]; then

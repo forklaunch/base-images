@@ -100,7 +100,7 @@ fi
 
 # --- Tool images ----------------------------------------------------------------
 tp="$ROOT/pins/tools.env"
-for key in MELANGE_IMAGE APKO_IMAGE GRYPE_IMAGE CRANE_IMAGE; do
+for key in MELANGE_IMAGE APKO_IMAGE GRYPE_IMAGE; do
   ref="${!key}"; repo="${ref%@*}"
   digest="$(docker buildx imagetools inspect "$repo:latest" --format '{{json .Manifest.Digest}}' | tr -d '"')"
   [ -n "$digest" ] || die "could not resolve $repo:latest"
@@ -109,5 +109,14 @@ for key in MELANGE_IMAGE APKO_IMAGE GRYPE_IMAGE CRANE_IMAGE; do
     set_env "$tp" "$key" "$repo@$digest"
   fi
 done
+
+# oras: newest release tag, by digest.
+oras_tag="$(gh_api https://api.github.com/repos/oras-project/oras/releases/latest | jq -r .tag_name)"
+oras_digest="$(docker buildx imagetools inspect "ghcr.io/oras-project/oras:$oras_tag" --format '{{json .Manifest.Digest}}' | tr -d '"')"
+[ -n "$oras_digest" ] || die "could not resolve ghcr.io/oras-project/oras:$oras_tag"
+if [ "ghcr.io/oras-project/oras:$oras_tag@$oras_digest" != "$ORAS_IMAGE" ]; then
+  note "tools: oras ${ORAS_IMAGE#*:} -> $oras_tag@$oras_digest"
+  set_env "$tp" ORAS_IMAGE "ghcr.io/oras-project/oras:$oras_tag@$oras_digest"
+fi
 
 if [ -s "$changes" ]; then log "pins changed:"; cat "$changes" >&2; else log "pins unchanged"; fi

@@ -33,7 +33,7 @@ for image in "${images[@]}"; do
     config="$(render_variant "$image" "$variant" "$template")" || die "could not render $image:$variant"
     lock="$ROOT/images/$image/locks/$variant.lock.json"
     log "$image:$variant: resolving packages"
-    (cd "$WORK" && tool "$APKO_IMAGE" lock "$config" "${arch_args[@]}" --output "$lock.tmp" \
+    (cd "$WORK" && tool "$APKO_IMAGE" lock "$config" ${arch_args[@]+"${arch_args[@]}"} --output "$lock.tmp" \
        --cache-dir "$WORK/apko-cache")
     # Keep the lock file stable across runs that resolve the same packages.
     jq -S . "$lock.tmp" > "$lock" && rm -f "$lock.tmp"
@@ -45,7 +45,7 @@ for image in "${images[@]}"; do
       log "$image:$variant: building into $WORK/oci/$image-$variant.tar"
       mkdir -p "$WORK/oci"
       (cd "$WORK" && tool "$APKO_IMAGE" build "$config" "fl-local/$image:$variant" "$WORK/oci/$image-$variant.tar" \
-         "${arch_args[@]}" --lockfile "$lock" --sbom-path "$sbom_dir" --build-date "$build_date" \
+         ${arch_args[@]+"${arch_args[@]}"} --lockfile "$lock" --sbom-path "$sbom_dir" --build-date "$build_date" \
          --cache-dir "$WORK/apko-cache")
       docker load -q -i "$WORK/oci/$image-$variant.tar" >&2
       rm -f "$WORK/oci/$image-$variant.tar"
@@ -54,11 +54,21 @@ for image in "${images[@]}"; do
     fi
     log "$image:$variant: publishing $staging"
     (cd "$WORK" && tool "$APKO_IMAGE" publish "$config" "$staging" \
-       "${arch_args[@]}" --lockfile "$lock" --sbom-path "$sbom_dir" --build-date "$build_date" \
+       ${arch_args[@]+"${arch_args[@]}"} --lockfile "$lock" --sbom-path "$sbom_dir" --build-date "$build_date" \
        --cache-dir "$WORK/apko-cache" --image-refs "$sbom_dir/image-refs.txt")
-    ref="$(grep -m1 "@sha256:" "$sbom_dir/image-refs.txt" || true)"
-    [ -n "$ref" ] || ref="$(head -1 "$sbom_dir/image-refs.txt")"
+    # apko lists the per-architecture images first and the index last.
+    ref="$(grep "@sha256:" "$sbom_dir/image-refs.txt" | tail -1)"
     [[ "$ref" == *@sha256:* ]] || die "$image:$variant: apko did not report a digest ($ref)"
-    printf '%s\t%s\t%s\n' "$image" "$variant" "$STAGING_REGISTRY/$STAGING_PREFIX/$image@${ref##*@}" >> "$candidates"
+    repo="$STAGING_REGISTRY/$STAGING_PREFIX/$image"
+    index_ref="$repo@${ref##*@}"
+
+    # SBOMs go next to the images as OCI referrers (artifact type
+    # application/spdx+json): the index SBOM on the index, each
+    # architecture's SBOM on that architecture's image.
+    attach_sbom "$index_ref" "$sbom_dir/sbom-index.spdx.json"
+    while IFS=$'\t' read -r arch digest; do
+      attach_sbom "$repo@$digest" "$sbom_dir/sbom-$arch.spdx.json"
+    done < <(index_platforms "$index_ref")
+    printf '%s\t%s\t%s\n' "$image" "$variant" "$index_ref" >> "$candidates"
   done < <(variants "$image")
 done

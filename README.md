@@ -11,7 +11,14 @@ reports 0 findings.
 | `rust` | runtime, `dev` | Runtime libraries for Rust services; `dev` adds the Rust toolchain |
 | `platform-toolchain` | one | The tools the ForkLaunch platform worker needs (see below) |
 
-Every image is built for `linux/amd64` and `linux/arm64`, and every image has an SPDX SBOM.
+Every image is built for `linux/amd64` and `linux/arm64`. Every image carries
+SPDX SBOMs (one for the index, one per architecture), attached as OCI referrers
+with artifact type `application/spdx+json`:
+
+```sh
+oras discover public.ecr.aws/e6h0t2z8/node:24
+oras pull public.ecr.aws/e6h0t2z8/node@sha256:<sbom-digest>   # from the discover output
+```
 
 Registry: `public.ecr.aws/e6h0t2z8` (the registry's default alias, until the
 `forklaunch` alias is approved; `PUBLIC_REGISTRY_ALIAS` in [`config.env`](config.env)).
@@ -36,7 +43,7 @@ when the version tag does not, because Wolfi packages get security fixes.
 Use a digest in anything you ship, and let a bot or a person move it:
 
 ```sh
-crane digest public.ecr.aws/e6h0t2z8/node:24
+oras resolve public.ecr.aws/e6h0t2z8/node:24
 # or
 docker buildx imagetools inspect public.ecr.aws/e6h0t2z8/node:24 --format '{{json .Manifest.Digest}}'
 ```
@@ -78,7 +85,8 @@ OpenSSL 3.6 headers, gcc, make, perl, cmake, git. `CARGO_HOME=/usr/local/cargo`.
 with buildx and compose, Pulumi with its Node.js language host, AWS CLI v2,
 git, ripgrep, unzip, xz, iptables, iproute2, libnl3 and protobuf (headers and
 `protoc`, for nsjail), the Rust toolchain and rust-analyzer, build-base,
-pkg-config, OpenSSL 3.6 and libcurl headers, cmake, perl, the shared libraries
+pkg-config, OpenSSL 4.0 and libcurl headers (Wolfi's `curl-dev` requires
+OpenSSL 4.0 headers), cmake, perl, the shared libraries
 and DejaVu fonts Playwright's `chrome-headless-shell` needs, and the Codex CLI.
 Runs as root. Platform-specific pieces (nsjail itself, BuildKit, the ForkLaunch
 CLI, tsgo, the Playwright browser, the RDS CA bundle, the platform's older Bun
@@ -144,7 +152,7 @@ Everything an image is built from is pinned, and
 | `pins/<image>.txt` | every Wolfi package the image asks for, `name=version-rN` | newest build present on both architectures |
 | `images/<image>/locks/<variant>.lock.json` | the resolved closure (every package, version and checksum), from `apko lock` | regenerated at build time |
 | `pins/packages.env` | Node versions and tarball sha256, pnpm, codex, Bun fallback, epochs | Node (newest patch per major), Bun; pnpm and codex by hand |
-| `pins/tools.env` | melange, apko, Grype and crane images by digest | current `:latest` digest |
+| `pins/tools.env` | melange, apko, Grype and oras images by digest | current `:latest` digest (oras: newest release) |
 
 The Rust stream follows Wolfi: the refresh picks the newest `rust-1.N` package
 built for both architectures.
@@ -177,8 +185,9 @@ built for both architectures.
    `rust:dev` and run on `rust` as uid 65532, `--version` of every
    platform-toolchain tool, and Playwright's `chrome-headless-shell` rendering a page.
 7. **publish**: candidates that passed the gate and both smoke runs are copied
-   by digest to public ECR (`crane copy`, so the public image is the one that was
-   scanned), their tags moved, and their SBOMs copied along.
+   by digest to public ECR with `oras cp -r` (the index, both architectures and
+   the SBOM referrers), so the public image is the one that was scanned and
+   tested; then every tag is checked to resolve to that digest.
 8. **commit**: pins and lock files of published images, plus a
    `CHANGELOG.md` entry with every digest, are committed to `main` (or proposed
    in a pull request if `main` refuses the push).
@@ -219,7 +228,8 @@ The melange private key is in Secrets Manager
   nodejs/release-keys. Until then the signature check fails and the run opens an issue.
 - **Roll back a tag**: point it at an earlier digest from `CHANGELOG.md`:
   ```sh
-  crane tag public.ecr.aws/e6h0t2z8/node@sha256:<old-digest> 24
+  aws ecr-public get-login-password --region us-east-1 | oras login -u AWS --password-stdin public.ecr.aws
+  oras tag public.ecr.aws/e6h0t2z8/node@sha256:<old-digest> 24
   ```
   Then pin consumers to that digest, because the next nightly run moves the tag
   again if a newer build passes. To stop that, run the workflow with

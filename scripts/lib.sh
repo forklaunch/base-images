@@ -40,6 +40,24 @@ tool() {
   docker run "${args[@]}" "$image" "$@"
 }
 
+# oras with the mounted Docker credentials.
+oras() {
+  local cfg=(); [ -f "${DOCKER_CONFIG:-$HOME/.docker}/config.json" ] && cfg=(--registry-config /run/docker-config/config.json)
+  tool "$ORAS_IMAGE" "$@" ${cfg[@]+"${cfg[@]}"}
+}
+
+# "<apk-arch>\t<digest>" for each linux image in an index.
+index_platforms() {
+  oras manifest fetch "$1" | jq -r '.manifests[] | select(.platform.os=="linux")
+    | [(if .platform.architecture=="amd64" then "x86_64" elif .platform.architecture=="arm64" then "aarch64" else .platform.architecture end), .digest] | @tsv'
+}
+
+# Attach an SPDX SBOM to an image as an OCI referrer.
+attach_sbom() { # ref file
+  [ -s "$2" ] || die "missing SBOM $2"
+  (cd "$(dirname "$2")" && oras attach --artifact-type application/spdx+json "$1" "$(basename "$2"):application/spdx+json" >/dev/null)
+}
+
 log() { printf '%s\n' "$*" >&2; }
 die() { log "error: $*"; exit 1; }
 
