@@ -6,7 +6,7 @@ reports 0 findings.
 
 | Image | Variants | Contents |
 |---|---|---|
-| `node` | runtime, `-dev` | Node.js 24 and 26, compiled here from the nodejs.org source release |
+| `node` | runtime, `-dev` | Node.js 26 (the default) and 24, compiled here from the nodejs.org source release |
 | `bun` | runtime, `-dev` | Bun (Wolfi's package) |
 | `rust` | runtime, `dev` | Runtime libraries for Rust services; `dev` adds the Rust toolchain |
 | `platform-toolchain` | one | The tools the ForkLaunch platform worker needs (see below) |
@@ -16,7 +16,7 @@ SPDX SBOMs (one for the index, one per architecture), attached as OCI referrers
 with artifact type `application/spdx+json`:
 
 ```sh
-oras discover public.ecr.aws/e6h0t2z8/node:24
+oras discover public.ecr.aws/e6h0t2z8/node:26
 oras pull public.ecr.aws/e6h0t2z8/node@sha256:<sbom-digest>   # from the discover output
 ```
 
@@ -29,7 +29,7 @@ Registry: `public.ecr.aws/e6h0t2z8` (the registry's default alias, until the
 
 | Image | Tags |
 |---|---|
-| `node` | `24`, `24.22`, `24.22.3`, `24-YYYYMMDD`; the same with `-dev` (`24-dev`, `24.22.3-dev`, `24-dev-YYYYMMDD`); likewise for `26` |
+| `node` | `26`, `26.13`, `26.13.1`, `26-YYYYMMDD`; the same with `-dev` (`26-dev`, `26.13.1-dev`, `26-dev-YYYYMMDD`); likewise for `24`. There is no `latest` tag: name the major. |
 | `bun` | `latest`, `1`, `1.4`, `1.4.5`, `1-YYYYMMDD`; `dev`, `1-dev`, `1.4-dev`, `1.4.5-dev`, `1-dev-YYYYMMDD` |
 | `rust` | runtime: `latest`, `YYYYMMDD`; toolchain: `dev`, `1.100-dev`, `1.100.0-dev`, `dev-YYYYMMDD` |
 | `platform-toolchain` | `latest`, `YYYYMMDD` |
@@ -43,17 +43,18 @@ when the version tag does not, because Wolfi packages get security fixes.
 Use a digest in anything you ship, and let a bot or a person move it:
 
 ```sh
-oras resolve public.ecr.aws/e6h0t2z8/node:24
+oras resolve public.ecr.aws/e6h0t2z8/node:26
 # or
-docker buildx imagetools inspect public.ecr.aws/e6h0t2z8/node:24 --format '{{json .Manifest.Digest}}'
+docker buildx imagetools inspect public.ecr.aws/e6h0t2z8/node:26 --format '{{json .Manifest.Digest}}'
 ```
 
 ```dockerfile
-FROM public.ecr.aws/e6h0t2z8/node:24-dev@sha256:<digest> AS build
-FROM public.ecr.aws/e6h0t2z8/node:24@sha256:<digest>
+FROM public.ecr.aws/e6h0t2z8/node:26-dev@sha256:<digest> AS build
+FROM public.ecr.aws/e6h0t2z8/node:26@sha256:<digest>
 ```
 
-The digest is the multi-arch index, so one pin covers both architectures. The
+Node 26 is the default for new services; `node:24` stays published for those
+still on it. The digest is the multi-arch index, so one pin covers both architectures. The
 tag in front of `@` is ignored when pulling and only documents what you pinned.
 
 ## What is in each image
@@ -68,7 +69,7 @@ User `node`, uid/gid 1000, home `/home/node`; the image runs as `node`.
 `NODE_VERSION` is set as in the official image.
 
 **node -dev**: runtime plus npm (and corepack on 24; Node 25 and later do not
-bundle it), pnpm, Node headers (`npm_config_nodedir=/usr`, so node-gyp does not
+bundle it), pnpm (its native binary, so it runs without starting Node), Node headers (`npm_config_nodedir=/usr`, so node-gyp does not
 download them), python3, make, gcc/g++ (`build-base`), git. Runs as root.
 
 **bun** (runtime): `bun` (with `bunx`), `libstdc++`, `curl`. User `bun`,
@@ -100,7 +101,7 @@ apk repository:
 | Package | Source | Verification |
 |---|---|---|
 | `nodejs-24`, `nodejs-26` (+ `-npm`, `-dev`) | compiled from `node-vX.Y.Z.tar.xz` on nodejs.org | sha256 from `SHASUMS256.txt`, whose signature is checked against the Node release keys ([`keys/nodejs-release-keys.kbx`](keys/), from [nodejs/release-keys](https://github.com/nodejs/release-keys) `gpg-only-active-keys` at 481637f) |
-| `pnpm` | npm registry tarball | sha512 integrity from the registry |
+| `pnpm` | npm registry tarballs: the `pnpm` wrapper and the native binary from `@pnpm/exe.linux-x64` / `-arm64` | sha512 integrity from the registry, cross-checked with npm's signed publish attestation and the downloaded tarball |
 | `pulumi` (CLI and language hosts) | official release tarball | sha256 from the release checksums file, cross-checked with GitHub's digest |
 | `node-docker-entrypoint` | `docker-entrypoint.sh` from nodejs/docker-node at a fixed commit | sha256 |
 | `bun` (fallback only) | official release zip | sha256 from the release's `SHASUMS256.txt`, cross-checked with GitHub's digest |
@@ -128,7 +129,7 @@ downstream Dockerfiles can add more of these packages:
 
 ```dockerfile
 USER root
-RUN apk add --no-cache 'nodejs-24-npm@forklaunch'
+RUN apk add --no-cache 'nodejs-26-npm@forklaunch'
 ```
 
 Our packages share names with Wolfi's (`nodejs-24`, `pnpm`, `pulumi`), so the
@@ -157,8 +158,13 @@ Everything an image is built from is pinned, and
 |---|---|---|
 | `pins/<image>.txt` | every Wolfi package the image asks for, `name=version-rN` | newest build present on both architectures |
 | `images/<image>/locks/<variant>.lock.json` | the resolved closure (every package, version and checksum), from `apko lock` | regenerated at build time |
-| `pins/packages.env` | Node versions and tarball sha256, pnpm, Pulumi, the docker-node entrypoint, Bun fallback, epochs | Node (newest patch per major), Pulumi (newest release), Bun; pnpm and the entrypoint by hand |
+| `pins/packages.env` | Node versions and tarball sha256, pnpm, Pulumi, the docker-node entrypoint, Bun fallback, epochs, the release-age floor | Node (newest patch per major), pnpm (newest stable release at least a day old), Pulumi (newest release), Bun; the entrypoint by hand |
 | `pins/tools.env` | melange, apko, Grype and oras images by digest | current `:latest` digest (oras: newest release) |
+
+pnpm follows the registry's `latest` tag (pnpm publishes to `next` first) but
+only once a release is `MIN_RELEASE_AGE_MINUTES` old (1440, a day: the
+`minimumReleaseAge` the ForkLaunch app workspaces use), and never moves
+backwards. A newer release appears in the run log until it is old enough.
 
 The Rust stream follows Wolfi: the refresh picks the newest `rust-1.N` package
 built for both architectures.
@@ -221,10 +227,10 @@ The melange private key is in Secrets Manager
 
 ## Bump or roll back
 
-- **New Node patch, Bun, Rust or Wolfi build**: nothing to do; the nightly run picks it up.
-- **pnpm**: edit `PNPM_*` in `pins/packages.env` (version
-  and checksum; the comments say where each checksum comes from), then run the
-  workflow.
+- **New Node patch, pnpm, Bun, Rust or Wolfi build**: nothing to do; the nightly run picks it up
+  (pnpm a day after its release).
+- **Hold pnpm back**: revert the pin commit and run the workflow with `publish: false`
+  until a fixed release is out; the refresh never moves pnpm backwards on its own.
 - **A recipe change without a new upstream version**: bump the package's
   `*_EPOCH` in `pins/packages.env`.
 - **Another Node major**: add it to `NODE_MAJORS`, add `NODE_<major>_VERSION`,
@@ -235,7 +241,7 @@ The melange private key is in Secrets Manager
 - **Roll back a tag**: point it at an earlier digest from `CHANGELOG.md`:
   ```sh
   aws ecr-public get-login-password --region us-east-1 | oras login -u AWS --password-stdin public.ecr.aws
-  oras tag public.ecr.aws/e6h0t2z8/node@sha256:<old-digest> 24
+  oras tag public.ecr.aws/e6h0t2z8/node@sha256:<old-digest> 26
   ```
   Then pin consumers to that digest, because the next nightly run moves the tag
   again if a newer build passes. To stop that, run the workflow with
@@ -249,7 +255,7 @@ gpgv and the AWS CLI. Build one architecture into the local daemon and smoke-tes
 ```sh
 docker run --rm -v "$PWD/.work:/w" -w /w cgr.dev/chainguard/melange keygen forklaunch-melange.rsa  # a test key
 export SIGNING_KEY=$PWD/.work/forklaunch-melange.rsa APK_KEY_PATH=$PWD/.work/forklaunch-melange.rsa.pub
-LOCAL_INDEX=1 scripts/build-packages.sh aarch64 pnpm codex nodejs-24   # Node takes about an hour on 12 cores
+LOCAL_INDEX=1 scripts/build-packages.sh aarch64 pnpm nodejs-26   # Node takes about an hour on 12 cores
 LOCAL=1 ARCH_ONLY=aarch64 APK_REPO_OVERRIDE=$PWD/.work/packages scripts/build-images.sh node
 scripts/smoke.sh aarch64
 ```

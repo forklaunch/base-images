@@ -1,6 +1,10 @@
-# pnpm from the npm registry tarball, checked against the registry's sha512
-# integrity value (pins/packages.env). Pure JavaScript; needs a nodejs-* package
-# at run time, which every image that installs this also installs.
+# pnpm from the npm registry. Since pnpm 12 the `pnpm` package is a thin wrapper
+# and the program is a native executable in `@pnpm/exe.linux-<cpu>` (glibc).
+# Both tarballs are checked against sha512 values in pins/packages.env, which
+# scripts/refresh-pins.sh takes from the registry's integrity field, cross-checks
+# with npm's signed publish attestation, and re-hashes from the download.
+# The layout is what the wrapper's install.js produces: the native binary
+# replaces the placeholder bins next to the wrapper's dist/ (node-gyp lives there).
 package:
   name: pnpm
   version: "@@PNPM_VERSION@@"
@@ -22,10 +26,23 @@ pipeline:
       uri: https://registry.npmjs.org/pnpm/-/pnpm-${{package.version}}.tgz
       expected-sha512: @@PNPM_SHA512@@
       strip-components: 1
+  - if: ${{build.arch}} == 'x86_64'
+    uses: fetch
+    with:
+      uri: https://registry.npmjs.org/@pnpm/exe.linux-x64/-/exe.linux-x64-${{package.version}}.tgz
+      expected-sha512: @@PNPM_EXE_SHA512_X86_64@@
+      extract: false
+  - if: ${{build.arch}} == 'aarch64'
+    uses: fetch
+    with:
+      uri: https://registry.npmjs.org/@pnpm/exe.linux-arm64/-/exe.linux-arm64-${{package.version}}.tgz
+      expected-sha512: @@PNPM_EXE_SHA512_AARCH64@@
+      extract: false
   - runs: |
       dest="${{targets.destdir}}/usr/lib/node_modules/pnpm"
-      mkdir -p "$dest" "${{targets.destdir}}/usr/bin"
-      cp -a package.json LICENSE bin dist "$dest"/
-      [ -d artifacts ] && cp -a artifacts "$dest"/ || true
-      for b in pnpm pn; do ln -s ../lib/node_modules/pnpm/bin/pnpm.mjs "${{targets.destdir}}/usr/bin/$b"; done
-      for b in pnpx pnx; do ln -s ../lib/node_modules/pnpm/bin/pnpx.mjs "${{targets.destdir}}/usr/bin/$b"; done
+      mkdir -p "$dest" "${{targets.destdir}}/usr/bin" exe
+      tar -xzf exe.linux-*-${{package.version}}.tgz -C exe --strip-components 1
+      cp -a package.json THIRD-PARTY-NOTICES.md native-binary.mjs bin dist exe/LICENSE "$dest"/
+      install -m755 exe/pnpm "$dest/pnpm"
+      for b in pn pnpx pnx; do ln "$dest/pnpm" "$dest/$b"; done
+      for b in pnpm pn pnpx pnx; do ln -s ../lib/node_modules/pnpm/$b "${{targets.destdir}}/usr/bin/$b"; done

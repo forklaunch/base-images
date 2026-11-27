@@ -1,5 +1,5 @@
 ## node
-Node.js runtime on Wolfi. Node is compiled by ForkLaunch from the nodejs.org source release (checksum and release-key signature verified) and packaged as `nodejs-<major>` with its true upstream version. Tags: `24`, `24.x.y`, `26`, `26.x.y`, dated `<major>-YYYYMMDD`, and `-dev` variants for build stages. Runs as `node` (uid 1000).
+Node.js runtime on Wolfi. Node is compiled by ForkLaunch from the nodejs.org source release (checksum and release-key signature verified) and packaged as `nodejs-<major>` with its true upstream version. Tags: `26` (recommended), `26.x.y`, `24`, `24.x.y`, dated `<major>-YYYYMMDD`, and `-dev` variants for build stages. Runs as `node` (uid 1000).
 ## bun
 Bun runtime on Wolfi. Tags: `1`, `1.x.y`, dated `1-YYYYMMDD`, and `-dev` variants. Runs as `bun` (uid 1000).
 ## rust
