@@ -139,11 +139,18 @@ npm_checked_sha512() {
   local pkg="$1" ver="$2" meta hex att att_hex tgz got
   meta="$(curl -fsSL --retry 3 "https://registry.npmjs.org/$pkg/$ver")" || die "$pkg@$ver: not in the npm registry"
   hex="$(npm_hex "$(jq -r .dist.integrity <<<"$meta")")" || die "$pkg@$ver: registry integrity is not sha512"
-  att="$(curl -fsSL --retry 3 "https://registry.npmjs.org/-/npm/v1/attestations/$pkg@$ver")" || die "$pkg@$ver: no npm publish attestation"
-  att_hex="$(jq -r --arg p "pkg:npm/${pkg/#@/%40}@$ver" '[.attestations[]
-      | select(.predicateType == "https://github.com/npm/attestation/tree/main/specs/publish/v0.1")
-      | .bundle.dsseEnvelope.payload | @base64d | fromjson | .subject[]
-      | select(.name == $p) | .digest.sha512][0] // ""' <<<"$att")"
+  # The attestations endpoint now and then answers with a body that has no
+  # publish attestation in it; ask again before treating that as a mismatch.
+  local try
+  for try in 1 2 3 4; do
+    att="$(curl -fsSL --retry 3 "https://registry.npmjs.org/-/npm/v1/attestations/$pkg@$ver")" || die "$pkg@$ver: no npm publish attestation"
+    att_hex="$(jq -r --arg p "pkg:npm/${pkg/#@/%40}@$ver" '[.attestations[]
+        | select(.predicateType == "https://github.com/npm/attestation/tree/main/specs/publish/v0.1")
+        | .bundle.dsseEnvelope.payload | @base64d | fromjson | .subject[]
+        | select(.name == $p) | .digest.sha512][0] // ""' <<<"$att")"
+    [ "$att_hex" = "$hex" ] && break
+    [ "$try" -lt 4 ] && { log "$pkg@$ver: attestation read $try did not match, retrying"; sleep $((try*10)); }
+  done
   [ -n "$hex" ] && [ "$att_hex" = "$hex" ] || die "$pkg@$ver: registry integrity ($hex) and publish attestation ($att_hex) disagree"
   tgz="$(mktemp)"
   curl -fsSL --retry 3 -o "$tgz" "$(jq -r .dist.tarball <<<"$meta")" || { rm -f "$tgz"; die "$pkg@$ver: tarball download failed"; }
