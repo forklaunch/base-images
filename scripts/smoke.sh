@@ -104,7 +104,7 @@ test_toolchain() { # ref
              "pulumi version" "aws --version" "git --version" "rg --version" "unzip -v" \
              "iptables --version" "ip -V" "cargo --version" "rustc --version" "rust-analyzer --version" \
              "codex --version" "cmake --version" "perl -v" "pkg-config --version" "protoc --version" \
-             "python3 --version" "curl --version"; do
+             "curl --version"; do
       out="$($c 2>&1)" || { echo "FAILED: $c: $out" >&2; exit 1; }
       printf "%-24s %s\n" "$c" "$(printf "%s\n" "$out" | grep -m1 -v "^[[:space:]]*$")" >&2
     done

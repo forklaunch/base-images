@@ -15,7 +15,7 @@ contents:
     - nodejs-@@NODE_MAJOR@@@forklaunch
     - nodejs-@@NODE_MAJOR@@-npm@forklaunch
     - nodejs-@@NODE_MAJOR@@-dev@forklaunch
-    - nodejs-@@NODE_MAJOR@@-oci-entrypoint@forklaunch
+    - node-docker-entrypoint@forklaunch
     - pnpm@forklaunch
     - python-3.13
     - build-base

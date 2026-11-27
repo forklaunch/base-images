@@ -6,7 +6,7 @@
 # is not in the repository yet, so a Node build happens once per release.
 #
 # Usage: scripts/build-packages.sh <arch> [package...]
-#   package       nodejs-24, nodejs-26, pnpm, codex, bun (default: all of them)
+#   package       nodejs-24, nodejs-26, node-docker-entrypoint, pnpm, codex, bun (default: all)
 #   SIGNING_KEY   path to the melange private key (required)
 #   FORCE=1       rebuild even if the package is already published
 #   LOCAL_INDEX=1 also write a signed APKINDEX of everything in $WORK/packages/<arch>
@@ -33,7 +33,7 @@ published() { curl -fsSI --retry 2 "$APK_REPO_URL/$arch/$1" >/dev/null 2>&1; }
 
 all=()
 for m in $NODE_MAJORS; do all+=("nodejs-$m"); done
-all+=(pnpm codex)
+all+=(node-docker-entrypoint pnpm codex)
 [ "$BUN_SOURCE" = forklaunch ] && all+=(bun)
 targets=("$@"); [ ${#targets[@]} -gt 0 ] || targets=("${all[@]}")
 
@@ -44,6 +44,8 @@ for name in "${targets[@]}"; do
       m="${name#nodejs-}"; v="NODE_${m}_VERSION"; s="NODE_${m}_SHA256"; e="NODE_${m}_EPOCH"
       version="${!v}"; epoch="${!e}"; template=nodejs.yaml.in
       vars=("NODE_MAJOR=$m" "NODE_VERSION=$version" "NODE_SHA256=${!s}" "NODE_EPOCH=$epoch") ;;
+    node-docker-entrypoint) version="$NODE_ENTRYPOINT_VERSION"; epoch="$NODE_ENTRYPOINT_EPOCH"
+      template=node-docker-entrypoint.yaml.in; vars=("$ROOT/pins/packages.env") ;;
     pnpm) version="$PNPM_VERSION"; epoch="$PNPM_EPOCH"; template=pnpm.yaml.in; vars=("$ROOT/pins/packages.env") ;;
     codex) version="$CODEX_VERSION"; epoch="$CODEX_EPOCH"; template=codex.yaml.in; vars=("$ROOT/pins/packages.env") ;;
     bun)

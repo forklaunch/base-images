@@ -11,7 +11,7 @@ contents:
     - ca-certificates-bundle
     - curl
     - nodejs-@@NODE_MAJOR@@@forklaunch
-    - nodejs-@@NODE_MAJOR@@-oci-entrypoint@forklaunch
+    - node-docker-entrypoint@forklaunch
 
 accounts:
   groups:

@@ -24,11 +24,6 @@ package:
     cpu: 4
     memory: 16Gi
 
-vars:
-  # docker-entrypoint.sh from nodejs/docker-node, as wolfi-dev/os pins it.
-  docker-entrypoint-commit: 31a343bbe3f1
-  docker-entrypoint-hash: a15ac9589c04baf9da95b08e0e79b5cf1d75ab8dc64e06a5e68e4ceb0ad7c8ea
-
 environment:
   contents:
     packages:
@@ -100,18 +95,6 @@ subpackages:
       - runs: |
           mkdir -p "${{targets.subpkgdir}}"/usr
           mv "${{targets.destdir}}"/usr/include "${{targets.subpkgdir}}"/usr/
-
-  # The official image's entrypoint: `docker run <image> app.js` runs node app.js.
-  - name: ${{package.name}}-oci-entrypoint
-    description: docker-entrypoint.sh from nodejs/docker-node
-    pipeline:
-      - uses: fetch
-        with:
-          uri: https://raw.githubusercontent.com/nodejs/docker-node/${{vars.docker-entrypoint-commit}}/docker-entrypoint.sh
-          expected-sha256: ${{vars.docker-entrypoint-hash}}
-          extract: false
-      - runs: |
-          install -Dm755 docker-entrypoint.sh "${{targets.subpkgdir}}"/usr/local/bin/docker-entrypoint.sh
 
 test:
   pipeline:

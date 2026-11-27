@@ -1,0 +1,26 @@
+# docker-entrypoint.sh from nodejs/docker-node, so `docker run <image> app.js`
+# runs `node app.js` as in the official image. Its own package (not a nodejs-*
+# subpackage) so the image SBOM has one source per origin.
+package:
+  name: node-docker-entrypoint
+  version: "@@NODE_ENTRYPOINT_VERSION@@"
+  epoch: @@NODE_ENTRYPOINT_EPOCH@@
+  description: "docker-entrypoint.sh from nodejs/docker-node"
+  copyright:
+    - license: MIT
+  options:
+    no-depends: true
+
+environment:
+  contents:
+    packages:
+      - busybox
+
+pipeline:
+  - uses: fetch
+    with:
+      uri: https://raw.githubusercontent.com/nodejs/docker-node/@@NODE_ENTRYPOINT_COMMIT@@/docker-entrypoint.sh
+      expected-sha256: @@NODE_ENTRYPOINT_SHA256@@
+      extract: false
+  - runs: |
+      install -Dm755 docker-entrypoint.sh "${{targets.destdir}}"/usr/local/bin/docker-entrypoint.sh

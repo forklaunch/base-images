@@ -50,7 +50,7 @@ contents:
     - rust-analyzer
     - build-base
     - pkgconf
-    - openssl-3.6-dev
+    - openssl-4.0-dev
     - curl-dev
     - cmake
     - perl
@@ -63,7 +63,9 @@ contents:
     - mesa-gbm
     - libdrm
     - glib
-    - nss
+    - libnss
+    - libnspr
+    - libatk-1.0
     - libx11
     - libxcb
     - libxcomposite
@@ -73,7 +75,7 @@ contents:
     - libxkbcommon
     - libxrandr
     - libudev
-    - expat
+    - libexpat1
 
 accounts:
   run-as: root

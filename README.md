@@ -91,9 +91,10 @@ apk repository:
 
 | Package | Source | Verification |
 |---|---|---|
-| `nodejs-24`, `nodejs-26` (+ `-npm`, `-dev`, `-oci-entrypoint`) | compiled from `node-vX.Y.Z.tar.xz` on nodejs.org | sha256 from `SHASUMS256.txt`, whose signature is checked against the Node release keys ([`keys/nodejs-release-keys.kbx`](keys/), from [nodejs/release-keys](https://github.com/nodejs/release-keys) `gpg-only-active-keys` at 481637f) |
+| `nodejs-24`, `nodejs-26` (+ `-npm`, `-dev`) | compiled from `node-vX.Y.Z.tar.xz` on nodejs.org | sha256 from `SHASUMS256.txt`, whose signature is checked against the Node release keys ([`keys/nodejs-release-keys.kbx`](keys/), from [nodejs/release-keys](https://github.com/nodejs/release-keys) `gpg-only-active-keys` at 481637f) |
 | `pnpm` | npm registry tarball | sha512 integrity from the registry |
 | `codex` | GitHub release (static musl build) | sha256 digest GitHub records for the asset |
+| `node-docker-entrypoint` | `docker-entrypoint.sh` from nodejs/docker-node at a fixed commit | sha256 |
 | `bun` (fallback only) | official release zip | sha256 from the release's `SHASUMS256.txt`, cross-checked with GitHub's digest |
 
 Wolfi moved non-latest Node 22 builds to Chainguard's paid repository in

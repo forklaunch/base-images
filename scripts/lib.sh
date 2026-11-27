@@ -11,6 +11,9 @@ set -a
 # shellcheck source=/dev/null
 . "$ROOT/pins/tools.env"
 set +a
+# Local testing: build fewer Node majors than the pins name.
+NODE_MAJORS="${NODE_MAJORS_OVERRIDE:-$NODE_MAJORS}"
+PLATFORM_NODE_MAJOR="${PLATFORM_NODE_MAJOR_OVERRIDE:-$PLATFORM_NODE_MAJOR}"
 
 # Work directory for downloads, rendered configs and build output. CI sets it
 # to a runner temp dir; locally it defaults to ./.work (git-ignored).
@@ -98,10 +101,11 @@ own_pins() {
   local m v e
   for m in $NODE_MAJORS; do
     v="NODE_${m}_VERSION"; e="NODE_${m}_EPOCH"
-    for sub in "" -npm -dev -oci-entrypoint; do
+    for sub in "" -npm -dev; do
       echo "nodejs-$m$sub=${!v}-r${!e}"
     done
   done
+  echo "node-docker-entrypoint=$NODE_ENTRYPOINT_VERSION-r$NODE_ENTRYPOINT_EPOCH"
   echo "pnpm=$PNPM_VERSION-r$PNPM_EPOCH"
   echo "codex=$CODEX_VERSION-r$CODEX_EPOCH"
   if [ "$BUN_SOURCE" = forklaunch ]; then echo "bun=$BUN_VERSION-r$BUN_EPOCH"; fi
