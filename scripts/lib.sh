@@ -42,7 +42,11 @@ tool() {
 
 # oras with the mounted Docker credentials.
 oras() {
-  local cfg=(); [ -f "${DOCKER_CONFIG:-$HOME/.docker}/config.json" ] && cfg=(--registry-config /run/docker-config/config.json)
+  local cfg=() c=/run/docker-config/config.json
+  if [ -f "${DOCKER_CONFIG:-$HOME/.docker}/config.json" ]; then
+    # `oras cp` takes one credentials file per side.
+    if [ "$1" = cp ]; then cfg=(--from-registry-config "$c" --to-registry-config "$c"); else cfg=(--registry-config "$c"); fi
+  fi
   tool "$ORAS_IMAGE" "$@" ${cfg[@]+"${cfg[@]}"}
 }
 
