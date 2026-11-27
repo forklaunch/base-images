@@ -115,7 +115,7 @@ jobs:
           SIGNING_KEY: ${{ runner.temp }}/melange.rsa
           FORCE: ${{ inputs.force_packages && '1' || '0' }}
         run: |
-          if [ "${{ matrix.package }}" = misc ]; then set -- node-docker-entrypoint pnpm codex bun; else set -- "${{ matrix.package }}"; fi
+          if [ "${{ matrix.package }}" = misc ]; then set -- node-docker-entrypoint pnpm pulumi bun; else set -- "${{ matrix.package }}"; fi
           scripts/build-packages.sh "${{ matrix.arch }}" "$@"
           mv "$WORK/packages/${{ matrix.arch }}/built.txt" "$WORK/packages/${{ matrix.arch }}/built-${{ matrix.package }}.txt"
       - name: Remove signing key

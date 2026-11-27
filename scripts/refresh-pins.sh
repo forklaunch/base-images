@@ -8,7 +8,9 @@
 #   - every other Wolfi package in pins/<image>.txt: newest build present on
 #     both architectures
 #   - build tool images in pins/tools.env: current :latest digest
-# pnpm and codex are pinned by hand and not touched.
+#   - Pulumi: newest release, sha256 from its checksums file checked against
+#     GitHub's asset digest
+# pnpm and the docker-node entrypoint are pinned by hand and not touched.
 #
 # Writes a short changelog of what moved to $WORK/pins-changes.md (empty if
 # nothing did). Usage: scripts/refresh-pins.sh
@@ -96,6 +98,24 @@ else
   fi
   set_env "$pk" BUN_SOURCE forklaunch
   set_env "$pk" BUN_VERSION "$bun_upstream"
+fi
+
+# --- Pulumi ---------------------------------------------------------------------
+pulumi_latest="$(gh_api https://api.github.com/repos/pulumi/pulumi/releases/latest | jq -r .tag_name)"
+pulumi_latest="${pulumi_latest#v}"
+if [ "$pulumi_latest" != "$PULUMI_VERSION" ]; then
+  sums="$(curl -fsSL --retry 3 "https://github.com/pulumi/pulumi/releases/download/v$pulumi_latest/pulumi-$pulumi_latest-checksums.txt")"
+  assets="$(gh_api "https://api.github.com/repos/pulumi/pulumi/releases/tags/v$pulumi_latest")"
+  for pair in X86_64:linux-x64 AARCH64:linux-arm64; do
+    asset="pulumi-v$pulumi_latest-${pair#*:}.tar.gz"
+    sum="$(awk -v a="$asset" '$2==a{print $1}' <<<"$sums")"
+    gh_sum="$(jq -r --arg a "$asset" '.assets[] | select(.name==$a) | .digest' <<<"$assets")"
+    [ -n "$sum" ] && [ "sha256:$sum" = "$gh_sum" ] || die "pulumi $pulumi_latest $asset: checksums file ($sum) and GitHub digest ($gh_sum) disagree"
+    set_env "$pk" "PULUMI_SHA256_${pair%%:*}" "$sum"
+  done
+  note "pulumi: $PULUMI_VERSION -> $pulumi_latest"
+  set_env "$pk" PULUMI_VERSION "$pulumi_latest"
+  set_env "$pk" PULUMI_EPOCH 0
 fi
 
 # --- Tool images ----------------------------------------------------------------

@@ -90,6 +90,8 @@ test_rust() { # runtime-ref dev-ref
       cargo build --quiet --release && cp target/release/hello /src/hello-bin && chmod 755 /src/hello-bin && rm -rf target >&2'
   expect "tiny binary on runtime" "hello from rust $( [ "$arch" = x86_64 ] && echo x86_64 || echo aarch64)" \
     "$(run -v "$scratch/rust:/bin-in:ro" --entrypoint /bin-in/hello-bin "$rt")"
+  # Files written by the root build container; remove them from inside it.
+  run -v "$scratch/rust:/src" --entrypoint /bin/rm "$dev" -rf /src/hello /src/hello-bin || true
   expect "runtime user" "65532" "$(run --entrypoint /bin/sh "$rt" -c 'id -u')"
   expect "app user" "app 1000 /home/app" "$(run --entrypoint /bin/sh "$rt" -c 'echo "$(id -un app) $(id -u app) $(awk -F: "\$1==\"app\"{print \$6}" /etc/passwd)"')"
   check "libssl.so.3, libcrypto.so.3, curl" run --entrypoint /bin/sh "$rt" -c 'test -e /usr/lib/libssl.so.3 && test -e /usr/lib/libcrypto.so.3 && curl --version | head -1 >&2'
@@ -108,10 +110,11 @@ test_toolchain() { # ref
       out="$($c 2>&1)" || { echo "FAILED: $c: $out" >&2; exit 1; }
       printf "%-24s %s\n" "$c" "$(printf "%s\n" "$out" | grep -m1 -v "^[[:space:]]*$")" >&2
     done
-    fc-list | grep -qi dejavu && echo "fonts: dejavu present" >&2'
+    ls /usr/share/fonts/*/DejaVuSans.ttf >/dev/null && echo "fonts: DejaVu present" >&2'
   expect "node" "v${!v}" "$(run "$ref" node --version)"
   expect "pnpm" "$PNPM_VERSION" "$(run "$ref" pnpm --version)"
-  expect "codex" "codex-cli $CODEX_VERSION" "$(run "$ref" codex --version)"
+  expect "codex" "codex-cli $(upstream_of "$(pin_of platform-toolchain codex)")" "$(run "$ref" codex --version)"
+  expect "pulumi" "v$PULUMI_VERSION" "$(run "$ref" pulumi version)"
   expect "bun" "$(bun_version)" "$(run "$ref" bun --version)"
   # The Playwright headless shell the platform installs must find every library.
   expect "chrome-headless-shell libraries" "ok" "$(run "$ref" bash -c '
@@ -148,6 +151,6 @@ while IFS=$'\t' read -r image variant ref; do
   esac
 done < "$list"
 
-rm -rf "$scratch"
+rm -rf "$scratch" 2>/dev/null || true
 cat "$results" >&2
 exit $status

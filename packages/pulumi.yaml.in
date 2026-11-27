@@ -1,0 +1,36 @@
+# Pulumi CLI and its language hosts from the official release tarball. Wolfi
+# stopped updating its public pulumi package at 3.245.0 (the recipe left
+# wolfi-dev/os), and that build carries open advisories. The sha256 of each
+# tarball comes from the release's checksums file and must match the digest
+# GitHub records for the asset (scripts/refresh-pins.sh).
+package:
+  name: pulumi
+  version: "@@PULUMI_VERSION@@"
+  epoch: @@PULUMI_EPOCH@@
+  description: "Pulumi CLI and language hosts (official release build)"
+  copyright:
+    - license: Apache-2.0
+  options:
+    no-depends: true
+
+environment:
+  contents:
+    packages:
+      - busybox
+
+pipeline:
+  - if: ${{build.arch}} == 'x86_64'
+    uses: fetch
+    with:
+      uri: https://github.com/pulumi/pulumi/releases/download/v${{package.version}}/pulumi-v${{package.version}}-linux-x64.tar.gz
+      expected-sha256: @@PULUMI_SHA256_X86_64@@
+      strip-components: 1
+  - if: ${{build.arch}} == 'aarch64'
+    uses: fetch
+    with:
+      uri: https://github.com/pulumi/pulumi/releases/download/v${{package.version}}/pulumi-v${{package.version}}-linux-arm64.tar.gz
+      expected-sha256: @@PULUMI_SHA256_AARCH64@@
+      strip-components: 1
+  - runs: |
+      mkdir -p "${{targets.destdir}}/usr/bin"
+      for f in pulumi pulumi-*; do install -m755 "$f" "${{targets.destdir}}/usr/bin/$f"; done

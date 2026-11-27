@@ -26,15 +26,14 @@ contents:
     - nodejs-@@NODE_MAJOR@@-dev@forklaunch
     - pnpm@forklaunch
     - @@BUN_PACKAGE@@
-    # Codex CLI (our package at the platform's pinned version)
-    - codex@forklaunch
+    # Codex CLI (Wolfi)
+    - codex
     # Docker CLI with buildx and compose plugins
     - docker-cli
     - docker-cli-buildx
     - docker-compose
-    # Pulumi and its Node.js language host
-    - pulumi
-    - pulumi-language-nodejs
+    # Pulumi with its language hosts (our package of the official release)
+    - pulumi@forklaunch
     # AWS CLI v2
     - aws-cli-2
     # release-build network namespace (flbuild): NAT and metadata DROP rules
@@ -66,6 +65,10 @@ contents:
     - libnss
     - libnspr
     - libatk-1.0
+    - libatk-bridge-2.0
+    - cairo
+    - pango
+    - cups-libs
     - libx11
     - libxcb
     - libxcomposite

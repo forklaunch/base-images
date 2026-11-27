@@ -6,7 +6,7 @@
 # is not in the repository yet, so a Node build happens once per release.
 #
 # Usage: scripts/build-packages.sh <arch> [package...]
-#   package       nodejs-24, nodejs-26, node-docker-entrypoint, pnpm, codex, bun (default: all)
+#   package       nodejs-24, nodejs-26, node-docker-entrypoint, pnpm, pulumi, bun (default: all)
 #   SIGNING_KEY   path to the melange private key (required)
 #   FORCE=1       rebuild even if the package is already published
 #   LOCAL_INDEX=1 also write a signed APKINDEX of everything in $WORK/packages/<arch>
@@ -33,7 +33,7 @@ published() { curl -fsSI --retry 2 "$APK_REPO_URL/$arch/$1" >/dev/null 2>&1; }
 
 all=()
 for m in $NODE_MAJORS; do all+=("nodejs-$m"); done
-all+=(node-docker-entrypoint pnpm codex)
+all+=(node-docker-entrypoint pnpm pulumi)
 [ "$BUN_SOURCE" = forklaunch ] && all+=(bun)
 targets=("$@"); [ ${#targets[@]} -gt 0 ] || targets=("${all[@]}")
 
@@ -47,7 +47,7 @@ for name in "${targets[@]}"; do
     node-docker-entrypoint) version="$NODE_ENTRYPOINT_VERSION"; epoch="$NODE_ENTRYPOINT_EPOCH"
       template=node-docker-entrypoint.yaml.in; vars=("$ROOT/pins/packages.env") ;;
     pnpm) version="$PNPM_VERSION"; epoch="$PNPM_EPOCH"; template=pnpm.yaml.in; vars=("$ROOT/pins/packages.env") ;;
-    codex) version="$CODEX_VERSION"; epoch="$CODEX_EPOCH"; template=codex.yaml.in; vars=("$ROOT/pins/packages.env") ;;
+    pulumi) version="$PULUMI_VERSION"; epoch="$PULUMI_EPOCH"; template=pulumi.yaml.in; vars=("$ROOT/pins/packages.env") ;;
     bun)
       [ "$BUN_SOURCE" = forklaunch ] || { log "bun comes from Wolfi (BUN_SOURCE=wolfi); skipping"; continue; }
       version="$BUN_VERSION"; epoch="$BUN_EPOCH"; template=bun.yaml.in; vars=("$ROOT/pins/packages.env") ;;

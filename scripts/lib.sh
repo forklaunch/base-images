@@ -125,7 +125,7 @@ own_pins() {
   done
   echo "node-docker-entrypoint=$NODE_ENTRYPOINT_VERSION-r$NODE_ENTRYPOINT_EPOCH"
   echo "pnpm=$PNPM_VERSION-r$PNPM_EPOCH"
-  echo "codex=$CODEX_VERSION-r$CODEX_EPOCH"
+  echo "pulumi=$PULUMI_VERSION-r$PULUMI_EPOCH"
   if [ "$BUN_SOURCE" = forklaunch ]; then echo "bun=$BUN_VERSION-r$BUN_EPOCH"; fi
 }
 

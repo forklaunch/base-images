@@ -82,7 +82,7 @@ uid/gid 1000, home `/home/bun`; runs as `bun`. Entrypoint `bun`.
 OpenSSL 3.6 headers, gcc, make, perl, cmake, git. `CARGO_HOME=/usr/local/cargo`. Runs as root.
 
 **platform-toolchain**: Node 26 with npm, headers and pnpm, Bun, Docker CLI
-with buildx and compose, Pulumi with its Node.js language host, AWS CLI v2,
+with buildx and compose, Pulumi with its language hosts, AWS CLI v2,
 git, ripgrep, unzip, xz, iptables, iproute2, libnl3 and protobuf (headers and
 `protoc`, for nsjail), the Rust toolchain and rust-analyzer, build-base,
 pkg-config, OpenSSL 4.0 and libcurl headers (Wolfi's `curl-dev` requires
@@ -101,7 +101,7 @@ apk repository:
 |---|---|---|
 | `nodejs-24`, `nodejs-26` (+ `-npm`, `-dev`) | compiled from `node-vX.Y.Z.tar.xz` on nodejs.org | sha256 from `SHASUMS256.txt`, whose signature is checked against the Node release keys ([`keys/nodejs-release-keys.kbx`](keys/), from [nodejs/release-keys](https://github.com/nodejs/release-keys) `gpg-only-active-keys` at 481637f) |
 | `pnpm` | npm registry tarball | sha512 integrity from the registry |
-| `codex` | GitHub release (static musl build) | sha256 digest GitHub records for the asset |
+| `pulumi` (CLI and language hosts) | official release tarball | sha256 from the release checksums file, cross-checked with GitHub's digest |
 | `node-docker-entrypoint` | `docker-entrypoint.sh` from nodejs/docker-node at a fixed commit | sha256 |
 | `bun` (fallback only) | official release zip | sha256 from the release's `SHASUMS256.txt`, cross-checked with GitHub's digest |
 
@@ -111,6 +111,12 @@ keeping Node majors free. Node is built the way nodejs.org builds its release
 binaries (bundled OpenSSL, ICU, libuv and so on). The package keeps upstream's
 name and version (`nodejs-24` `24.22.3`), so scanners compare it with Wolfi's
 advisory data for that exact version. `-rN` is this repository's build number.
+
+Wolfi stopped updating its public `pulumi` package at 3.245.0 (the recipe left
+wolfi-dev/os), and that build has open advisories, so Pulumi is repackaged here
+from the official release. The Codex CLI comes from Wolfi at its newest build;
+the platform's own Dockerfile pins an older Codex, whose advisories would hold
+this image back.
 
 The Bun fallback runs only when Wolfi has not packaged the newest Bun release
 (`BUN_SOURCE` in [`pins/packages.env`](pins/packages.env)).
@@ -125,7 +131,7 @@ USER root
 RUN apk add --no-cache 'nodejs-24-npm@forklaunch'
 ```
 
-Our packages share names with Wolfi's (`nodejs-24`, `pnpm`, `codex`), so the
+Our packages share names with Wolfi's (`nodejs-24`, `pnpm`, `pulumi`), so the
 repository is tagged `@forklaunch` and every image asks for them with that tag.
 Without the tag, apk installs Wolfi's build.
 
@@ -151,7 +157,7 @@ Everything an image is built from is pinned, and
 |---|---|---|
 | `pins/<image>.txt` | every Wolfi package the image asks for, `name=version-rN` | newest build present on both architectures |
 | `images/<image>/locks/<variant>.lock.json` | the resolved closure (every package, version and checksum), from `apko lock` | regenerated at build time |
-| `pins/packages.env` | Node versions and tarball sha256, pnpm, codex, Bun fallback, epochs | Node (newest patch per major), Bun; pnpm and codex by hand |
+| `pins/packages.env` | Node versions and tarball sha256, pnpm, Pulumi, the docker-node entrypoint, Bun fallback, epochs | Node (newest patch per major), Pulumi (newest release), Bun; pnpm and the entrypoint by hand |
 | `pins/tools.env` | melange, apko, Grype and oras images by digest | current `:latest` digest (oras: newest release) |
 
 The Rust stream follows Wolfi: the refresh picks the newest `rust-1.N` package
@@ -216,7 +222,7 @@ The melange private key is in Secrets Manager
 ## Bump or roll back
 
 - **New Node patch, Bun, Rust or Wolfi build**: nothing to do; the nightly run picks it up.
-- **pnpm or codex**: edit `PNPM_*` / `CODEX_*` in `pins/packages.env` (version
+- **pnpm**: edit `PNPM_*` in `pins/packages.env` (version
   and checksum; the comments say where each checksum comes from), then run the
   workflow.
 - **A recipe change without a new upstream version**: bump the package's
