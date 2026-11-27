@@ -1,6 +1,6 @@
 {
   "config": {
-    "checksum": "sha256-40IQJSX8Jq9tH9rfaxKZLTnqP/l7S7oMPh1LH1Yr0Mc=",
+    "checksum": "sha256-nqzyiQdkyDBKTBIAbQy29QceiDfsimG61CpRSDE7/X0=",
     "name": "/home/runner/work/_temp/work/apko/node/24-dev.yaml"
   },
   "contents": {
@@ -1274,22 +1274,22 @@
       },
       {
         "architecture": "x86_64",
-        "checksum": "Q1Xz2E4rEicSPH/D4kh17W6PU2Ees=",
+        "checksum": "Q1murQtLZ8gMp4LMflg/mbWSVgh4Q=",
         "control": {
-          "checksum": "sha1-Xz2E4rEicSPH/D4kh17W6PU2Ees=",
-          "range": "bytes=705-3797"
+          "checksum": "sha1-murQtLZ8gMp4LMflg/mbWSVgh4Q=",
+          "range": "bytes=701-4401"
         },
         "data": {
-          "checksum": "sha256-YSOqtCxPbg5FYnKW4CdKjySRRQq4vj+yZKyDXhOWMdM=",
-          "range": "bytes=3798-9312366"
+          "checksum": "sha256-8u08vhll7r0zPa6YgymcUAmaVCcVQER4jFnJSVSgnHs=",
+          "range": "bytes=4402-29634645"
         },
         "name": "pnpm",
         "signature": {
-          "checksum": "sha1-4ojx+PfMMoIO5l0w4e3uKHTV308=",
-          "range": "bytes=0-704"
+          "checksum": "sha1-L/CUqIus1ojvNmrJPAii7APj6PQ=",
+          "range": "bytes=0-700"
         },
-        "url": "https://forklaunch-apk.s3.us-east-1.amazonaws.com/os/x86_64/pnpm-11.21.0-r0.apk",
-        "version": "11.21.0-r0"
+        "url": "https://forklaunch-apk.s3.us-east-1.amazonaws.com/os/x86_64/pnpm-12.23.0-r0.apk",
+        "version": "12.23.0-r0"
       },
       {
         "architecture": "x86_64",
@@ -2775,22 +2775,22 @@
       },
       {
         "architecture": "aarch64",
-        "checksum": "Q1f9SrrRowoEB4P6OYX8bl32fF7Oc=",
+        "checksum": "Q1elyt7QNEWC/xykxiDME0Zf5wKzU=",
         "control": {
-          "checksum": "sha1-f9SrrRowoEB4P6OYX8bl32fF7Oc=",
-          "range": "bytes=699-3789"
+          "checksum": "sha1-elyt7QNEWC/xykxiDME0Zf5wKzU=",
+          "range": "bytes=700-4401"
         },
         "data": {
-          "checksum": "sha256-efPiNgFnSPdJKEo0AJUZRl4oj5rXAtj0FhaLGlBlC2o=",
-          "range": "bytes=3790-9312354"
+          "checksum": "sha256-KEJBiOGhBLg89Ql4FHIxJ1a2Yue1QvnyxgSpFHg9FsQ=",
+          "range": "bytes=4402-27560765"
         },
         "name": "pnpm",
         "signature": {
-          "checksum": "sha1-bhm7i34HJLXSOvuBMCSOqvoFUws=",
-          "range": "bytes=0-698"
+          "checksum": "sha1-BBCbgEhwDcIKYAQ8Ezm7ulVSM90=",
+          "range": "bytes=0-699"
         },
-        "url": "https://forklaunch-apk.s3.us-east-1.amazonaws.com/os/aarch64/pnpm-11.21.0-r0.apk",
-        "version": "11.21.0-r0"
+        "url": "https://forklaunch-apk.s3.us-east-1.amazonaws.com/os/aarch64/pnpm-12.23.0-r0.apk",
+        "version": "12.23.0-r0"
       },
       {
         "architecture": "aarch64",

@@ -2,6 +2,22 @@
 
 ## 2026-11-27
 
+Run: https://github.com/forklaunch/base-images/actions/runs/45958877757
+
+Published:
+
+- `node:24` `public.ecr.aws/e6h0t2z8/node@sha256:2bb780c39338ae9be72629b1386a38883dda3bf5fb5d6b4a459ac81eac17f02a` (tags: 24 24.22 24.22.3 24-20261127)
+- `node:24-dev` `public.ecr.aws/e6h0t2z8/node@sha256:884f6d506d901c2de26a922fd95c933f9df2e29c990e78988ac9bdceadfb3e32` (tags: 24-dev 24.22-dev 24.22.3-dev 24-dev-20261127)
+- `node:26` `public.ecr.aws/e6h0t2z8/node@sha256:4ca1677772651587af3efdbf614142e11b56585043273179ecd82ce1943fc7df` (tags: 26 26.13 26.13.1 26-20261127)
+- `node:26-dev` `public.ecr.aws/e6h0t2z8/node@sha256:c31798fa091a730089b0bd8d6b3995ba43d444a4f114f316e686fa36c47feb74` (tags: 26-dev 26.13-dev 26.13.1-dev 26-dev-20261127)
+- `bun:runtime` `public.ecr.aws/e6h0t2z8/bun@sha256:4e74c07c0503a3c6e977693ce185827a75e3e72bb00642e179f8f235d4eb5a83` (tags: latest 1 1.4 1.4.5 1-20261127)
+- `bun:dev` `public.ecr.aws/e6h0t2z8/bun@sha256:c5b457e9678027b7073bb9f54a3e8a0c308959f50f213815349a0562bd15b4dd` (tags: dev 1-dev 1.4-dev 1.4.5-dev 1-dev-20261127)
+- `rust:runtime` `public.ecr.aws/e6h0t2z8/rust@sha256:48bb3838e539d3c4a8b0f60217e973dd0b7bf45d460e5dd61df8783ba457da71` (tags: latest 20261127)
+- `rust:dev` `public.ecr.aws/e6h0t2z8/rust@sha256:f45fab4155c4d66c3f084971dfb4e21a77d9814181dd5e27952062846035a567` (tags: dev 1.100-dev 1.100.0-dev dev-20261127)
+- `platform-toolchain:latest` `public.ecr.aws/e6h0t2z8/platform-toolchain@sha256:276e640796c101c2876dd740efd5fe6e9961714ae358415a1f66db117a13a0f9` (tags: latest 20261127)
+
+## 2026-11-27
+
 Run: https://github.com/forklaunch/base-images/actions/runs/45931458074
 
 Published:
